@@ -1,14 +1,13 @@
 <!DOCTYPE html>
-
 <html lang="en" class="h-full">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LWS Monitor</title>
-<script src="https://www.google.com/search?q=https://cdn.tailwindcss.com"></script>
-<link href="https://www.google.com/search?q=https://fonts.googleapis.com/css2%3Ffamily%3DInter:wght%40400%3B500%3B600%3B700%26display%3Dswap" rel="stylesheet">
-<script src="https://www.google.com/search?q=https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
-<style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LWS Monitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
 body { font-family: 'Inter', sans-serif; }
 @keyframes flash-red {
 0%, 100% { background-color: #991b1b; }
@@ -269,43 +268,43 @@ body { font-family: 'Inter', sans-serif; }
             const url = googleSheetUrlInput.value.trim(); 
         const key = secretKeyInput.value.trim();
         if (url &amp;&amp; key) { 
-            localStorage.setItem(&#39;lwsMonitorUrl&#39;, url); 
-            localStorage.setItem(&#39;lwsMonitorKey&#39;, key);
+            localStorage.setItem('lwsMonitorUrl', url); 
+            localStorage.setItem('lwsMonitorKey', key);
             sheetUrl = url; 
             secretKey = key;
-            navigate(&#39;dashboard&#39;); 
+            navigate('dashboard'); 
             fetchData(); 
             pollingInterval = setInterval(fetchData, 15000); a, 15000 } else {
 ); 
         showAlert(&quot;Missing Info&quot;, &quot;Please provide both the Web App URL and the Secret Key.&quot;);Secret K);
         }
-  resetUrlBtn.addEventListener(&#39;click&#39;, () =&gt; { if (confirm(&quot;Are you sure you want to reset the URL and Secret Key?&quot;)) { localStorage.removeItem(&#39;lwsMonitorUrl&#39;); localStorage.removeItem(&#39;lwsMonitorKey&#39;); sheetUrl = &#39;&#39;; secretKey = &#39;&#39;; clearInterval(pollingInterval); navigate(&#39;setup&#39;); } });
-    acknowledgeBtn.addEventListener(&#39;click&#39;, acknowledgeAlert);
-    closeWarningBtn.addEventListener(&#39;click&#39;, () =&gt; sizeWarningBanner.classList.add(&#39;hidden&#39;));
-    alertModalOkBtn.addEventListener(&#39;click&#39;,upPage = docu
+  resetUrlBtn.addEventListener('click', () =&gt; { if (confirm(&quot;Are you sure you want to reset the URL and Secret Key?&quot;)) { localStorage.removeItem('lwsMonitorUrl'); localStorage.removeItem(‘lwsMonitorKey’); sheetUrl = ‘‘; secretKey = ‘‘; clearInterval(pollingInterval); navigate(‘setup’); } });
+    acknowledgeBtn.addEventListener(‘click’, acknowledgeAlert);
+    closeWarningBtn.addEventListener(‘click’, () =&gt; sizeWarningBanner.classList.add(‘hidden’));
+    alertModalOkBtn.addEventListener(‘click’,upPage = docu
 }m
 functionupPage');
-        dashboardPa document.getElementById(&#39;setupPage&#39;);dPage');         googleS document.getElementById(&#39;dashboardPage&#39;);ogleShee');
-            secret document.getElementById(&#39;googleSheetUrl&#39;);ey');
-        saveUrlBtn  document.getElementById(&#39;secretKey&#39;););
-        resetUrlBt document.getElementById(&#39;saveUrlBtn&#39;);n');
-        workerLis document.getElementById(&#39;resetUrlBtn&#39;););
-        statusIndi document.getElementById(&#39;workerList&#39;);Indicato
-            lastU document.getElementById(&#39;statusIndicator&#39;);ted');
-        alertOver document.getElementById(&#39;lastUpdated&#39;);lay');
-        alertDet document.getElementById(&#39;alertOverlay&#39;);ils');
-        acknowle document.getElementById(&#39;alertDetails&#39;);edgeBtn'           modalB document.getElementById(&#39;acknowledgeBtn&#39;);kdrop');         alertMo document.getElementById(&#39;modalBackdrop&#39;););
-        alertModal document.getElementById(&#39;alertModal&#39;);odalTitl
-            alert document.getElementById(&#39;alertModalTitle&#39;);tModalMee');
-            ale document.getElementById(&#39;alertModalMessage&#39;);odalOkBt
-            sizeW document.getElementById(&#39;alertModalOkBtn&#39;);WarningBr');
-            clo document.getElementById(&#39;sizeWarningBanner&#39;);arningBt
+        dashboardPa document.getElementById(‘setupPage’);dPage');         googleS document.getElementById(‘dashboardPage’);ogleShee');
+            secret document.getElementById(‘googleSheetUrl’);ey');
+        saveUrlBtn  document.getElementById(‘secretKey’););
+        resetUrlBt document.getElementById(‘saveUrlBtn’);n');
+        workerLis document.getElementById(‘resetUrlBtn’););
+        statusIndi document.getElementById(‘workerList’);Indicato
+            lastU document.getElementById(‘statusIndicator’);ted');
+        alertOver document.getElementById(‘lastUpdated’);lay');
+        alertDet document.getElementById(‘alertOverlay’);ils');
+        acknowle document.getElementById(‘alertDetails’);edgeBtn'           modalB document.getElementById(‘acknowledgeBtn’);kdrop');         alertMo document.getElementById(‘modalBackdrop’););
+        alertModal document.getElementById(‘alertModal’);odalTitl
+            alert document.getElementById(‘alertModalTitle’);tModalMee');
+            ale document.getElementById(‘alertModalMessage’);odalOkBt
+            sizeW document.getElementById(‘alertModalOkBtn’);WarningBr');
+            clo document.getElementById(‘sizeWarningBanner’);arningBt
 
-            shee document.getElementById(&#39;closeWarningBtn&#39;);;
-        secretKey  localStorage.getItem(&#39;lwsMonitorUrl&#39;);;
-        if (sheetU localStorage.getItem(&#39;lwsMonitorKey&#39;);gate('daard');
+            shee document.getElementById(‘closeWarningBtn’);;
+        secretKey  localStorage.getItem(‘lwsMonitorUrl’);;
+        if (sheetU localStorage.getItem(‘lwsMonitorKey’);gate('daard');
        &amp;&amp; secretKey) {
-            navigate(&#39;dashboard&#39;);erval(fetchD 15000);
+            navigate(‘dashboard’);erval(fetchD 15000);
             } el
                 navigate('setup');
             }
