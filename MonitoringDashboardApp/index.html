@@ -10,7 +10,7 @@
 <script src="https://www.google.com/search?q=https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
 <style>
 body { font-family: 'Inter', sans-serif; }
-@keyframes flash {
+@keyframes flash-red {
 0%, 100% { background-color: #991b1b; }
 50% { background-color: #ef4444; }
 }
@@ -18,7 +18,7 @@ body { font-family: 'Inter', sans-serif; }
 0%, 100% { background-color: #5b21b6; }
 50% { background-color: #a78bfa; }
 }
-.flashing-alert { animation: flash 1s infinite; }
+.flashing-alert { animation: flash-red 1s infinite; }
 .flashing-duress { animation: flash-purple 1s infinite; }
 </style>
 </head>
@@ -44,7 +44,7 @@ body { font-family: 'Inter', sans-serif; }
 </div>
 
 <!-- Dashboard Page -->
-<div id="dashboardPage" class="h-full flex flex-col hidden">
+<div id="dashboardPage" class="h-full flex-col hidden">
     <header class="flex-shrink-0 bg-gray-900 shadow-lg z-10" style="-webkit-app-region: drag">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
@@ -261,15 +261,7 @@ body { font-family: 'Inter', sans-serif; }
         const arrivalTime = acknowledgeBtn.dataset.arrivalTime;
         const workerName = acknowledgeBtn.dataset.workerName;
         const data = { "Arrival Time": arrivalTime, "Worker Name": workerName, Notes: 'Alert acknowledged by monitor at ' + new Date().toISOString() };
-        const formData = new FormData();
-        for (const key in data) {
-            formData.append(key, data[key]);
-        }
-        fetch(sheetUrl, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: new URLSearchParams(formData)
-        }).then(() => console.log("Acknowledgement sent.")).catch(err => console.error("Failed to send ack:", err));
+        fetch(sheetUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(() => console.log("Acknowledgement sent.")).catch(err => console.error("Failed to send ack:", err));
     }
     function initEventListeners() {
         document.body.addEventListener('pointerdown', initAudio, { once: true });
@@ -324,4 +316,3 @@ functionupPage');
     </script>
 </body>
 </html>
-
