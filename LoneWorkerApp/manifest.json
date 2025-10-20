@@ -1,0 +1,20 @@
+{
+"short_name": "LWS App",
+"name": "Lone Worker Safety App",
+"icons": [
+{
+"src": "https://www.google.com/search?q=https://cdn.prod.website-files.com/62041b52ed8a57c9953613f0/6384072a15bbb66d5697dfbf_nelson-anglicans_crest-white-23.svg",
+"type": "image/png",
+"sizes": "192x192"
+},
+{
+"src": "https://www.google.com/search?q=https://cdn.prod.website-files.com/62041b52ed8a57c9953613f0/6384072a15bbb66d5697dfbf_nelson-anglicans_crest-white-23.svg",
+"type": "image/png",
+"sizes": "512x512"
+}
+],
+"start_url": ".",
+"display": "standalone",
+"theme_color": "#111827",
+"background_color": "#1f2937"
+}
