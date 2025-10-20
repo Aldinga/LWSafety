@@ -5,9 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LWS Monitor</title>
-<script src="https://www.google.com/search?q=https://cdn.tailwindcss.com"></script>
-<link href="https://www.google.com/search?q=https://fonts.googleapis.com/css2%3Ffamily%3DInter:wght%40400%3B500%3B600%3B700%26display%3Dswap" rel="stylesheet">
-<script src="https://www.google.com/search?q=https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700%26display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
 <style>
 body { font-family: 'Inter', sans-serif; }
 @keyframes flash {
@@ -44,7 +44,7 @@ body { font-family: 'Inter', sans-serif; }
 </div>
 
 <!-- Dashboard Page -->
-<div id="dashboardPage" class="h-full flex-col hidden">
+<div id="dashboardPage" class="h-full flex flex-col hidden">
     <header class="flex-shrink-0 bg-gray-900 shadow-lg z-10" style="-webkit-app-region: drag">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
@@ -213,53 +213,58 @@ body { font-family: 'Inter', sans-serif; }
 
             let lowBatteryIcon = '';
             if (worker.Notes && worker.Notes.includes('LOW BATTERY')) {
-                lowBatteryIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block text-red-400 ml-2 animate-pulse" title="Low Battery Warning Received"><path d="M11 7h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><path d="M19 12h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M4 12H2.5A1.5 1.5 0 0 0 1 13.5v1A1.5 1.5 0 0 0 2.5 16H4"/></svg>';eryIcon}    &lt;/p&gt;
-                  document.createElement('div');te&quot;    &gt;${worker[&#39;Location Name&#39;]}&lt;/p&gt;
-                    ${locationLinkHtml}
-                &lt;/div&gt;
-                &lt;div class=&quot;text-right flex-shrink-0 ml-4&quot;&gt;
-                    &lt;p class=&quot;font-semibold text-lg&quot;&gt;${worker[&#39;Alarm Status&#39;].replace(/_/g, &#39; &#39;)}&lt;/p&gt;
-                    &lt;p class=&quot;text-sm&quot;&gt;Due: ${anticipatedTime}&lt;/p&gt;
-                &lt;/div&gt;
-            &lt;/div&gt;
-            ${contactDetailsHtml}
-        `;
-        workerList.appendChild(card);
-    });
-}
-function checkForNewAlerts(workers) {
-    const newStatuses = {};
-    const criticalAlerts = [&#39;ALERT SENT&#39;, &#39;EMERGENCY - PANIC BUTTON&#39;, &#39;DURESS_CODE_ACTIVATED&#39;, &#39;MISSED_CHECKIN&#39;];
-    const updateAlerts = [&#39;EMAIL_1_SENT&#39;, &#39;EMAIL_2_SENT&#39;, &#39;EMAIL_3_SENT&#39;, &#39;ESCALATION_SENT&#39;];
-
-    workers.forEach(worker =&gt; {
-        const key = `${worker[&#39;Worker Name&#39;]}-${worker[&#39;Arrival Time&#39;]}`;
-        const oldStatus = lastKnownStatuses[key];
-        const newStatus = worker[&#39;Alarm Status&#39;];
-        newStatuses[key] = newStatus;
-
-        if (newStatus !== oldStatus) {
-            if (criticalAlerts.includes(newStatus) &amp;&amp; !criticalAlerts.includes(oldStatus)) {
-                 console.log(&quot;NEW CRITICAL ALERT:&quot;, worker);
-                 playAlarm(worker);
-            } else if (updateAlerts.includes(newStatus)) {
-                console.log(&quot;ALERT STATUS UPDATE:&quot;, worker);
-                playUpdateSound();
+                lowBatteryIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block text-red-400 ml-2 animate-pulse" title="Low Battery Warning Received"><path d="M11 7h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><path d="M19 12h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M4 12H2.5A1.5 1.5 0 0 0 1 13.5v1A1.5 1.5 0 0 0 2.5 16H4"/></svg>';
             }
-        }
-    });
-    lastKnownStatuses = newStatuses;
-}
-function acknowledgeAlert() {
-    stopAlarm();
-    const arrivalTime = acknowledgeBtn.dataset.arrivalTime;
-    const workerName = acknowledgeBtn.dataset.workerName;
-    const data = { &quot;Arrival Time&quot;: arrivalTime, &quot;Worker Name&quot;: workerName, Notes: `Alert acknowledged by monitor at ${new Date().toISOString()}` };
-    fetch(sheetUrl, { method: &#39;POST&#39;, mode: &#39;no-cors&#39;, headers: { &#39;Content-Type&#39;: &#39;application/json&#39; }, body: JSON.stringify(data) }).then(() =&gt; console.log(&quot;Acknowledgement sent.&quot;)).catch(err =&gt; console.error(&quot;Failed to send ack:&quot;, err));
-}
-function initEventListeners() {
-    document.body.addEventListener(&#39;pointerdown&#39;, initAudio, { once: true });
-    saveUrlBtn.addEventListener(&#39;click&#39;, () =&gt; { 
+
+            const card = document.createElement('div');
+            card.className = 'p-4 rounded-lg shadow-md ' + bgColor + ' ' + textColor + ' border-2 ' + borderColor + ' ' + flashClass;
+            card.innerHTML = '<div class="flex justify-between items-start">' +
+                    '<div class="flex-1 min-w-0">' +
+                        '<p class="font-bold text-xl truncate">' + worker['Worker Name'] + lowBatteryIcon + '</p>' +
+                        '<p class="text-sm truncate">' + worker['Location Name'] + '</p>' +
+                        locationLinkHtml +
+                    '</div>' +
+                    '<div class="text-right flex-shrink-0 ml-4">' +
+                        '<p class="font-semibold text-lg">' + worker['Alarm Status'].replace(/_/g, ' ') + '</p>' +
+                        '<p class="text-sm">Due: ' + anticipatedTime + '</p>' +
+                    '</div>' +
+                '</div>' +
+                contactDetailsHtml;
+            workerList.appendChild(card);
+        });
+    }
+    function checkForNewAlerts(workers) {
+        const newStatuses = {};
+        const criticalAlerts = ['ALERT SENT', 'EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN'];
+        const updateAlerts = ['EMAIL_1_SENT', 'EMAIL_2_SENT', 'EMAIL_3_SENT', 'ESCALATION_SENT'];
+
+        workers.forEach(worker => {
+            const key = worker['Worker Name'] + '-' + worker['Arrival Time'];
+            const oldStatus = lastKnownStatuses[key];
+            const newStatus = worker['Alarm Status'];
+            newStatuses[key] = newStatus;
+
+            if (newStatus !== oldStatus) {
+                if (criticalAlerts.includes(newStatus) && !criticalAlerts.includes(oldStatus)) {
+                     console.log("NEW CRITICAL ALERT:", worker);
+                     playAlarm(worker);
+                } else if (updateAlerts.includes(newStatus)) {
+                    console.log("ALERT STATUS UPDATE:", worker);
+                    playUpdateSound();
+                }
+            }
+        });
+        lastKnownStatuses = newStatuses;
+    }
+    function acknowledgeAlert() {
+        stopAlarm();
+        const arrivalTime = acknowledgeBtn.dataset.arrivalTime;
+        const workerName = acknowledgeBtn.dataset.workerName;
+        const data = { "Arrival Time": arrivalTime, "Worker Name": workerName, Notes: 'Alert acknowledged by monitor at ' + new Date().toISOString()#39;POS    T&#39;, mode: &#39;no-cors 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(() => console.log("Acknowledgement sent.")).catch(err => console.error("Failed to send ack:", err));
+    }
+    function initEventListeners() {
+        document.body.addEventListener('pointerdown', initAudio, { once: true });
+        saveUrlBtn.addEventListener('click', () =>39;click&#3    9;, () =&gt; { 
         const url = googleSheetUrlInput.value.trim(); 
         const key = secretKeyInput.value.trim();
         if (url &amp;&amp; key) { 
