@@ -25,207 +25,196 @@ body { font-family: 'Inter', sans-serif; }
 <body class="bg-gray-800 text-white h-full overflow-hidden">
 
 <!-- Setup Page -->
-
 <div id="setupPage" class="h-full flex items-center justify-center p-4 bg-gray-900">
-<div class="w-full max-w-md text-center">
-<h1 class="text-3xl font-bold text-blue-400 mb-4">Monitoring Dashboard Setup</h1>
-<p class="text-gray-400 mb-6">Enter the Google Sheet Web App URL and the Secret Key to begin monitoring.</p>
-<div class="space-y-4">
-<div>
-<label for="googleSheetUrl" class="sr-only">Google Sheet Web App URL</label>
-<input type="url" id="googleSheetUrl" class="block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Paste Web App URL here">
-</div>
-<div>
-<label for="secretKey" class="sr-only">Secret Key</label>
-<input type="password" id="secretKey" class="block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Enter Secret Key">
-</div>
-<button id="saveUrlBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Start Monitoring</button>
-</div>
-</div>
+    <div class="w-full max-w-md text-center">
+        <h1 class="text-3xl font-bold text-blue-400 mb-4">Monitoring Dashboard Setup</h1>
+        <p class="text-gray-400 mb-6">Enter the Google Sheet Web App URL and the Secret Key to begin monitoring.</p>
+        <div class="space-y-4">
+            <div>
+                <label for="googleSheetUrl" class="sr-only">Google Sheet Web App URL</label>
+                <input type="url" id="googleSheetUrl" class="block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Paste Web App URL here">
+            </div>
+            <div>
+                <label for="secretKey" class="sr-only">Secret Key</label>
+                <input type="password" id="secretKey" class="block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Enter Secret Key">
+            </div>
+            <button id="saveUrlBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Start Monitoring</button>
+        </div>
+    </div>
 </div>
 
 <!-- Dashboard Page -->
-
 <div id="dashboardPage" class="h-full flex-col hidden">
-<header class="flex-shrink-0 bg-gray-900 shadow-lg z-10" style="-webkit-app-region: drag">
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-<div class="flex items-center justify-between h-16">
-<h1 class="text-2xl font-bold text-blue-400">Lone Worker Monitor</h1>
-<div class="flex items-center space-x-2">
-<span id="statusIndicator" class="h-3 w-3 rounded-full bg-gray-500" title="Connection Status"></span>
-<span id="lastUpdated" class="text-sm text-gray-500"></span>
-<button id="resetUrlBtn" class="p-2 rounded-full hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.82l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2.82l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
-</div>
-</div>
-</div>
-</header>
-<main class="flex-1 overflow-y-auto p-4">
-<div id="sizeWarningBanner" class="hidden bg-yellow-600 text-white p-3 rounded-lg mb-4 flex justify-between items-center">
-<p><strong>Warning:</strong> The database exceeds 2,500 rows. Please advise the administrator to trim the database for optimal performance.</p>
-<button id="closeWarningBtn" class="ml-4 text-2xl font-bold">&times;</button>
-</div>
-<div id="workerList" class="space-y-3">
-<!-- Worker cards will be dynamically inserted here -->
-</div>
-</main>
+    <header class="flex-shrink-0 bg-gray-900 shadow-lg z-10" style="-webkit-app-region: drag">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <h1 class="text-2xl font-bold text-blue-400">Lone Worker Monitor</h1>
+                <div class="flex items-center space-x-2">
+                    <span id="statusIndicator" class="h-3 w-3 rounded-full bg-gray-500" title="Connection Status"></span>
+                    <span id="lastUpdated" class="text-sm text-gray-500"></span>
+                    <button id="resetUrlBtn" class="p-2 rounded-full hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.82l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2.82l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                </div>
+            </div>
+        </div>
+    </header>
+    <main class="flex-1 overflow-y-auto p-4">
+        <div id="sizeWarningBanner" class="hidden bg-yellow-600 text-white p-3 rounded-lg mb-4 flex justify-between items-center">
+            <p><strong>Warning:</strong> The database exceeds 2,500 rows. Please advise the administrator to trim the database for optimal performance.</p>
+            <button id="closeWarningBtn" class="ml-4 text-2xl font-bold">&times;</button>
+        </div>
+        <div id="workerList" class="space-y-3">
+            <!-- Worker cards will be dynamically inserted here -->
+        </div>
+    </main>
 </div>
 
 <!-- Alert Overlay -->
-
 <div id="alertOverlay" class="hidden fixed inset-0 z-50 flex-col items-center justify-center flashing-alert text-white p-8">
-<h2 class="text-8xl font-bold animate-pulse">ALERT!</h2>
-<div id="alertDetails" class="mt-8 text-center text-2xl bg-black bg-opacity-30 p-6 rounded-lg">
-<!-- Alert details will be inserted here -->
-</div>
-<button id="acknowledgeBtn" class="mt-12 bg-white text-red-700 font-bold py-4 px-8 rounded-lg text-3xl shadow-2xl">Acknowledge Alert</button>
+    <h2 class="text-8xl font-bold animate-pulse">ALERT!</h2>
+    <div id="alertDetails" class="mt-8 text-center text-2xl bg-black bg-opacity-30 p-6 rounded-lg">
+        <!-- Alert details will be inserted here -->
+    </div>
+    <button id="acknowledgeBtn" class="mt-12 bg-white text-red-700 font-bold py-4 px-8 rounded-lg text-3xl shadow-2xl">Acknowledge Alert</button>
 </div>
 
-<!-- Modals -->
-
+ <!-- Modals -->
 <div id="modalBackdrop" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-40">
-<div id="alertModal" class="hidden bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
-<h2 id="alertModalTitle" class="text-xl font-bold mb-2">Alert</h2>
-<p id="alertModalMessage" class="text-gray-300 mb-6"></p>
-<button id="alertModalOkBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-24">OK</button>
-</div>
+    <div id="alertModal" class="hidden bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
+         <h2 id="alertModalTitle" class="text-xl font-bold mb-2">Alert</h2>
+        <p id="alertModalMessage" class="text-gray-300 mb-6"></p>
+        <button id="alertModalOkBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-24">OK</button>
+    </div>
 </div>
 
 <script>
-let setupPage, dashboardPage, googleSheetUrlInput, saveUrlBtn, resetUrlBtn, workerList, statusIndicator, lastUpdatedEl, alertOverlay, alertDetails, acknowledgeBtn, modalBackdrop, alertModal, alertModalTitle, alertModalMessage, alertModalOkBtn, secretKeyInput, sizeWarningBanner, closeWarningBtn;
-let sheetUrl = '';
-let secretKey = '';
-let pollingInterval;
-let lastKnownStatuses = {};
-let alarm;
-function navigate(page) {
-if (page === 'setup') {
-setupPage.classList.remove('hidden');
-dashboardPage.classList.add('hidden');
-} else if (page === 'dashboard') {
-setupPage.classList.add('hidden');
-dashboardPage.classList.remove('hidden');
-}
-}
-function showModal(modal, onShow) { modalBackdrop.classList.remove('hidden'); modalBackdrop.classList.add('flex'); if(modal) { modal.classList.remove('hidden'); } if(onShow) onShow(); }
-function hideModals() { modalBackdrop.classList.add('hidden'); modalBackdrop.classList.remove('flex'); alertModal.classList.add('hidden'); }
-function showAlert(title, message) {
-if (!alertModalTitle) { console.error("showAlert called before elements were initialized."); return; }
-alertModalTitle.textContent = title;
-alertModalMessage.textContent = message;
-showModal(alertModal);
-}
-async function initAudio() {
-if (alarm) return;
-await Tone.start();
-alarm = new Tone.Synth({ oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.1 } }).toDestination();
-console.log("Audio context for alarm started.");
-}
-function playUpdateSound() {
-initAudio().then(() => {
-const now = Tone.now();
-alarm.triggerAttackRelease("A4", "16n", now);
-alarm.triggerAttackRelease("C5", "16n", now + 0.2);
-});
-}
-function playAlarm(worker) {
-initAudio().then(() => {
-if (window.electron) window.electron.sendAlert();
-if (!alarm.loop) { alarm.loop = new Tone.Loop(time => { alarm.triggerAttackRelease("C5", "8n", time); }, "4n").start(0); }
-Tone.Transport.start();
-alertDetails.innerHTML = &lt;p class=&quot;font-bold text-4xl&quot;&gt;${worker[&#39;Worker Name&#39;]}&lt;/p&gt;&lt;p&gt;at ${worker[&#39;Location Name&#39;]}&lt;/p&gt;&lt;p class=&quot;mt-4 text-red-300 font-bold&quot;&gt;${worker[&#39;Alarm Status&#39;]}&lt;/p&gt;;
-alertOverlay.classList.remove('hidden');
-if (worker['Alarm Status'] === 'DURESS_CODE_ACTIVATED') { alertOverlay.classList.add('flashing-duress'); } else { alertOverlay.classList.remove('flashing-duress'); }
-acknowledgeBtn.dataset.arrivalTime = worker['Arrival Time'];
-acknowledgeBtn.dataset.workerName = worker['Worker Name'];
-});
-}
-function stopAlarm() {
-if (Tone.Transport.state === 'started') { Tone.Transport.stop(); Tone.Transport.cancel(); if(alarm.loop) { alarm.loop.dispose(); alarm.loop = null; } }
-alertOverlay.classList.add('hidden');
-}
-function fetchData() {
-if (!sheetUrl || !secretKey) return;
-statusIndicator.classList.remove('bg-green-500', 'bg-red-500'); statusIndicator.classList.add('bg-yellow-500');
-const script = document.createElement('script');
-const callbackName = 'jsonp_callback_' + Date.now();
-window[callbackName] = function(data) {
-delete window[callbackName]; document.body.removeChild(script);
-if (data.status === 'error' && data.message.includes('Access Denied')) {
-console.error("Access Denied. Check Secret Key.");
-statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500');
-lastUpdatedEl.textContent = 'Access Denied';
-showAlert("Access Denied", "The Secret Key is incorrect. Please reset the URL and key in settings.");
-clearInterval(pollingInterval);
-return;
-}
-if (Array.isArray(data)) {
-statusIndicator.classList.remove('bg-yellow-500', 'bg-red-500'); statusIndicator.classList.add('bg-green-500');
-lastUpdatedEl.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
-if (data.length >= 2500) { sizeWarningBanner.classList.remove('hidden'); }
-processData(data);
-} else {
-console.error("Received non-array data, likely an error from the script:", data);
-statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500');
-lastUpdatedEl.textContent = 'Data error';
-}
-};
-script.src = sheetUrl + '?callback=' + callbackName + '&token=' + encodeURIComponent(secretKey);
-script.onerror = () => {
-delete window[callbackName]; document.body.removeChild(script);
-console.error("Fetch error: JSONP request failed. Check the URL and script deployment settings.");
-statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500');
-lastUpdatedEl.textContent = 'Update failed';
-showAlert( "Connection Failed", "Could not fetch data. This can be caused by an incorrect URL or if the Apps Script has not been correctly deployed. Please follow the setup instructions again carefully." );
-};
-document.body.appendChild(script);
-}
-function processData(data) {
-const activeStatuses = ["ON SITE", "ALERT SENT", "MISSED_CHECKIN", "EMAIL_1_SENT", "EMAIL_2_SENT", "EMAIL_3_SENT", "EMERGENCY - PANIC BUTTON", "DURESS_CODE_ACTIVATED", "ESCALATION_SENT"];
-const activeWorkers = data.filter(worker => activeStatuses.includes(worker['Alarm Status']));
-const statusPriority = { "DURESS_CODE_ACTIVATED": 1, "EMERGENCY - PANIC BUTTON": 2, "ESCALATION_SENT": 3, "MISSED_CHECKIN": 4, "EMAIL_3_SENT": 5, "EMAIL_2_SENT": 6, "EMAIL_1_SENT": 7, "ALERT SENT": 8, "ON SITE": 9 };
-activeWorkers.sort((a,b) => (statusPriority[a['Alarm Status']] || 99) - (statusPriority[b['Alarm Status']] || 99) || a['Worker Name'].localeCompare(b['Worker Name']));
-renderWorkers(activeWorkers);
-checkForNewAlerts(activeWorkers);
-}
-function renderWorkers(workers) {
-workerList.innerHTML = '';
-if (workers.length === 0) { workerList.innerHTML = &lt;div class=&quot;text-center text-gray-500 mt-10&quot;&gt;&lt;p class=&quot;text-xl&quot;&gt;No active workers found.&lt;/p&gt;&lt;p&gt;The dashboard is polling for updates.&lt;/p&gt;&lt;/div&gt;; return; }
-workers.forEach(worker => {
-let bgColor, textColor, borderColor, flashClass = '';
-switch(worker['Alarm Status']) {
-case 'DURESS_CODE_ACTIVATED': bgColor = 'bg-purple-800'; textColor = 'text-white'; borderColor = 'border-purple-400'; flashClass = 'flashing-duress'; break;
-case 'EMERGENCY - PANIC BUTTON': bgColor = 'bg-red-700'; textColor = 'text-white'; borderColor = 'border-red-400'; flashClass = 'flashing-alert'; break;
-case 'ESCALATION_SENT': case 'EMAIL_3_SENT': case 'EMAIL_2_SENT': case 'EMAIL_1_SENT': case 'ALERT SENT': case 'MISSED_CHECKIN': bgColor = 'bg-yellow-700'; textColor = 'text-white'; borderColor = 'border-yellow-400'; break;
-default: bgColor = 'bg-gray-700'; textColor = 'text-gray-300'; borderColor = 'border-transparent';
-}
-const anticipatedTime = new Date(worker['Anticipated Departure Time']).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-let locationLinkHtml = '';
-let contactDetailsHtml = '';
-const isAlertStatus = worker['Alarm Status'] !== 'ON SITE';
-
-        if (isAlertStatus) {
-            let linkUrl = &#39;#&#39;; let linkTitle = &#39;Location not available&#39;;
-            if (worker[&#39;Last Known GPS&#39;]) { linkUrl = `https://www.google.com/maps?q=${worker[&#39;Last Known GPS&#39;]}`; linkTitle = &#39;View last known GPS location&#39;;
-            } else if (worker[&#39;Location Address&#39;]) { linkUrl = `https://www.google.com/maps?q=${encodeURIComponent(worker[&#39;Location Address&#39;])}`; linkTitle = &#39;View initial location address&#39;; }
-            if(linkUrl !== &#39;#&#39;) { locationLinkHtml = `&lt;a href=&quot;${linkUrl}&quot; target=&quot;_blank&quot; title=&quot;${linkTitle}&quot; class=&quot;mt-1 inline-flex items-center text-sm text-blue-300 hover:text-blue-200&quot;&gt;&lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; class=&quot;mr-1&quot;&gt;&lt;path d=&quot;M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z&quot;/&gt;&lt;circle cx=&quot;12&quot; cy=&quot;10&quot; r=&quot;3&quot;/&gt;&lt;/svg&gt;View Location&lt;/a&gt;`; }
+    let setupPage, dashboardPage, googleSheetUrlInput, saveUrlBtn, resetUrlBtn, workerList, statusIndicator, lastUpdatedEl, alertOverlay, alertDetails, acknowledgeBtn, modalBackdrop, alertModal, alertModalTitle, alertModalMessage, alertModalOkBtn, secretKeyInput, sizeWarningBanner, closeWarningBtn;
+    let sheetUrl = '';
+    let secretKey = '';
+    let pollingInterval;
+    let lastKnownStatuses = {};
+    let alarm;
+    function navigate(page) {
+        if (page === 'setup') {
+            setupPage.classList.remove('hidden');
+            dashboardPage.classList.add('hidden');
+        } else if (page === 'dashboard') {
+            setupPage.classList.add('hidden');
+            dashboardPage.classList.remove('hidden');
+        }
+    }
+    function showModal(modal, onShow) { modalBackdrop.classList.remove('hidden'); modalBackdrop.classList.add('flex'); if(modal) { modal.classList.remove('hidden'); } if(onShow) onShow(); }
+    function hideModals() { modalBackdrop.classList.add('hidden'); modalBackdrop.classList.remove('flex'); alertModal.classList.add('hidden'); }
+    function showAlert(title, message) { 
+        if (!alertModalTitle) { console.error("showAlert called before elements were initialized."); return; }
+        alertModalTitle.textContent = title; 
+        alertModalMessage.textContent = message; 
+        showModal(alertModal); 
+    }
+    async function initAudio() {
+        if (alarm) return;
+        await Tone.start();
+        alarm = new Tone.Synth({ oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.1 } }).toDestination();
+        console.log("Audio context for alarm started.");
+    }
+    function playUpdateSound() {
+        initAudio().then(() => {
+            const now = Tone.now();
+            alarm.triggerAttackRelease("A4", "16n", now);
+            alarm.triggerAttackRelease("C5", "16n", now + 0.2);
+        });
+    }
+    function playAlarm(worker) {
+        initAudio().then(() => {
+            if (window.electron) window.electron.sendAlert();
+            if (!alarm.loop) { alarm.loop = new Tone.Loop(time => { alarm.triggerAttackRelease("C5", "8n", time); }, "4n").start(0); }
+            Tone.Transport.start();
+            alertDetails.innerHTML = '<p class="font-bold text-4xl">' + worker['Worker Name'] + '</p><p>at ' + worker['Location Name'] + '</p><p class="mt-4 text-red-300 font-bold">' + worker['Alarm Status'] + '</p>';
+            alertOverlay.classList.remove('hidden');
+            if (worker['Alarm Status'] === 'DURESS_CODE_ACTIVATED') { alertOverlay.classList.add('flashing-duress'); } else { alertOverlay.classList.remove('flashing-duress'); }
+            acknowledgeBtn.dataset.arrivalTime = worker['Arrival Time'];
+            acknowledgeBtn.dataset.workerName = worker['Worker Name'];
+        });
+    }
+    function stopAlarm() {
+        if (Tone.Transport.state === 'started') { Tone.Transport.stop(); Tone.Transport.cancel(); if(alarm.loop) { alarm.loop.dispose(); alarm.loop = null; } }
+        alertOverlay.classList.add('hidden');
+    }
+    function fetchData() {
+        if (!sheetUrl || !secretKey) return;
+        statusIndicator.classList.remove('bg-green-500', 'bg-red-500'); statusIndicator.classList.add('bg-yellow-500');
+        const script = document.createElement('script');
+        const callbackName = 'jsonp_callback_' + Date.now();
+        window[callbackName] = function(data) {
+            delete window[callbackName]; document.body.removeChild(script);
+            if (data.status === 'error' && data.message.includes('Access Denied')) {
+                console.error("Access Denied. Check Secret Key.");
+                statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500');
+                lastUpdatedEl.textContent = 'Access Denied';
+                showAlert("Access Denied", "The Secret Key is incorrect. Please reset the URL and key in settings.");
+                clearInterval(pollingInterval);
+                return;
+            }
+            if (Array.isArray(data)) {
+                statusIndicator.classList.remove('bg-yellow-500', 'bg-red-500'); statusIndicator.classList.add('bg-green-500');
+                lastUpdatedEl.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+                if (data.length >= 2500) { sizeWarningBanner.classList.remove('hidden'); }
+                processData(data);
+            } else {
+                 console.error("Received non-array data, likely an error from the script:", data);
+                 statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500');
+                 lastUpdatedEl.textContent = 'Data error';
+            }
+        };
+        script.src = sheetUrl + '?callback=' + callbackName + '&token=' + encodeURIComponent(secretKey);
+        script.onerror = () => {
+             delete window[callbackName]; document.body.removeChild(script);
+             console.error("Fetch error: JSONP request failed. Check the URL and script deployment settings.");
+             statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500');
+             lastUpdatedEl.textContent = 'Update failed';
+             showAlert( "Connection Failed", "Could not fetch data. This can be caused by an incorrect URL or if the Apps Script has not been correctly deployed. Please follow the setup instructions again carefully." );
+        };
+        document.body.appendChild(script);
+    }
+    function processData(data) {
+        const activeStatuses = ["ON SITE", "ALERT SENT", "MISSED_CHECKIN", "EMAIL_1_SENT", "EMAIL_2_SENT", "EMAIL_3_SENT", "EMERGENCY - PANIC BUTTON", "DURESS_CODE_ACTIVATED", "ESCALATION_SENT"];
+        const activeWorkers = data.filter(worker => activeStatuses.includes(worker['Alarm Status']));
+        const statusPriority = { "DURESS_CODE_ACTIVATED": 1, "EMERGENCY - PANIC BUTTON": 2, "ESCALATION_SENT": 3, "MISSED_CHECKIN": 4, "EMAIL_3_SENT": 5, "EMAIL_2_SENT": 6, "EMAIL_1_SENT": 7, "ALERT SENT": 8, "ON SITE": 9 };
+        activeWorkers.sort((a,b) => (statusPriority[a['Alarm Status']] || 99) - (statusPriority[b['Alarm Status']] || 99) || a['Worker Name'].localeCompare(b['Worker Name']));
+        renderWorkers(activeWorkers);
+        checkForNewAlerts(activeWorkers);
+    }
+    function renderWorkers(workers) {
+        workerList.innerHTML = '';
+        if (workers.length === 0) { workerList.innerHTML = '<div class="text-center text-gray-500 mt-10"><p class="text-xl">No active workers found.</p><p>The dashboard is polling for updates.</p></div>'; return; }
+        workers.forEach(worker => {
+            let bgColor, textColor, borderColor, flashClass = '';
+            switch(worker['Alarm Status']) {
+                case 'DURESS_CODE_ACTIVATED': bgColor = 'bg-purple-800'; textColor = 'text-white'; borderColor = 'border-purple-400'; flashClass = 'flashing-duress'; break;
+                case 'EMERGENCY - PANIC BUTTON': bgColor = 'bg-red-700'; textColor = 'text-white'; borderColor = 'border-red-400'; flashClass = 'flashing-alert'; break;
+                case 'ESCALATION_SENT': case 'EMAIL_3_SENT': case 'EMAIL_2_SENT': case 'EMAIL_1_SENT': case 'ALERT SENT': case 'MISSED_CHECKIN': bgColor = 'bg-yellow-700'; textColor = 'text-white'; borderColor = 'border-yellow-400'; break;
+                default: bgColor = 'bg-gray-700'; textColor = 'text-gray-300'; borderColor = 'border-transparent';
+            }
+            const anticipatedTime = new Date(worker['Anticipated Departure Time']).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            let locationLinkHtml = '';
+            let contactDetailsHtml = '';
+            const isAlertStatus = worker['Alarm Status'] !== 'ON SITE';
             
-            contactDetailsHtml = `&lt;div class=&quot;mt-3 pt-2 border-t border-white/20 text-xs space-y-1&quot;&gt;
-                &lt;p&gt;Worker: &lt;a href=&quot;tel:${worker[&#39;Worker Phone Number&#39;]}&quot; class=&quot;text-blue-300 hover:text-blue-200&quot;&gt;${worker[&#39;Worker Phone Number&#39;]}&lt;/a&gt;&lt;/p&gt;
-                &lt;p&gt;Contact: ${worker[&#39;Emergency Contact Name&#39;]} - &lt;a href=&quot;tel:${worker[&#39;Emergency Contact Number&#39;]}&quot; class=&quot;text-blue-300 hover:text-blue-200&quot;&gt;${worker[&#39;Emergency Contact Number&#39;]}&lt;/a&gt;&lt;/p&gt;
-            &lt;/div&gt;`;
-        }
+            if (isAlertStatus) {
+                let linkUrl = '#'; let linkTitle = 'Location not available';
+rl h            ifttps://www.google.com/maps?q=' + worker['Last Known GPS']; linkTitle = 'View last known GPS location';=&quot;3&quo    t;/&gt;&lt (wor location';
+                } else if linkUrl = 'https://www.google.com/maps?q=' + encodeURIComponent(worker['Location Address']); linkTitle = 'View initial location address';          &lt;    p&gt;Worker:  }
+&l '#') {tio    if(linkUrl !==href="' + linkUrl + '" target="_blank" title="' + linkTitle + '" class="mt-1 inline-flex items-center text-sm text-blue-300 hover:text-blue-200"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>View Location</a>';   if (worker.N    otes &amp;&a }
+  Not cl        
+                contactDetailsHtml = '<div class="mt-3 pt-2 border-t border-white/20 text-xs space-y-1">' +
+                    '<p>Worker: <a href="tel:' + worker['Worker Phone Number'] + '" class="text-blue-300 hover:text-blue-200">' + worker['Worker Phone Number'] + '</a></p>' +
+                    '<p>Contact: ' + worker['Emergency Contact Name'] + ' - <a href="tel:' + worker['Emergency Contact Number'] + '" class="text-blue-300 hover:text-blue-200">' + worker['Emergency Contact Number'] + '</a></p>' +
+                '</div>';
+   t.5.TTE  }
 
-        let lowBatteryIcon = &#39;&#39;;
-        if (worker.Notes &amp;&amp; worker.Notes.includes(&#39;LOW BATTERY&#39;)) {
-            lowBatteryIcon = `&lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;20&quot; height=&quot;20&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; class=&quot;inline-block text-red-400 ml-2 animate-pulse&quot; title=&quot;Low Battery Warning Received&quot;&gt;&lt;path d=&quot;M11 7h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z&quot;/&gt;&lt;path d=&quot;M19 12h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19&quot;/&gt;&lt;path d=&quot;M4 12H2.5A1.5 1.5 0 0 0 1 13.5v1A1.5 1.5 0 0 0 2.5 16H4&quot;/&gt;&lt;/svg&gt;`;
-        }
-
-        const card = document.createElement(&#39;div&#39;);
-        card.className = `p-4 rounded-lg shadow-md ${bgColor} ${textColor} border-2 ${borderColor} ${flashClass}`;
-        card.innerHTML = `&lt;div class=&quot;flex justify-between items-start&quot;&gt;
-                &lt;div class=&quot;flex-1 min-w-0&quot;&gt;
-                    &lt;p class=&quot;font-bold text-xl truncate&quot;&gt;${worker[&#39;Worker Name&#39;]}${lowBatteryIcon}&lt;/p&gt;
-                    &lt;p class=&quot;text-sm truncate&quot;&gt;${worker[&#39;Location Name&#39;]}&lt;/p&gt;
+            let lowBatteryIcon = '';
+            if (worker.Notes && worker.Notes.includes('LOW BATTERY')) {
+                lowBatteryIcon =" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block text-red-400 ml-2 animate-pulse" title="Low Battery Warning Received"><path d="M11 7h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><path d="M19 12h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M4 12H2.5A1.5 1.5 0 0 0 1 13.5v1A1.5 1.5 0 0 0 2.5 16H4"/></svg>';eryIcon}    &lt;/p&gt;
+                  document.createElement('div');te&quot;    &gt;${worker[&#39;Location Name&#39;]}&lt;/p&gt;
                     ${locationLinkHtml}
                 &lt;/div&gt;
                 &lt;div class=&quot;text-right flex-shrink-0 ml-4&quot;&gt;
