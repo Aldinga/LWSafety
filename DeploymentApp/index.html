@@ -157,10 +157,7 @@
         // --- Helper function to get template content ---
         function getTemplateContent(id) {
             const template = document.getElementById(id + '-tpl');
-            // Use textContent for script/text templates, innerHTML for HTML templates if needed
-            // For simplicity and security (avoiding accidental script execution from templates), textContent is safer.
-            // However, our templates *are* HTML/JS, so innerHTML is required here.
-             return template ? template.innerHTML.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&") : ''; // Decode HTML entities
+             return template ? template.innerHTML.replace(/</g, "<").replace(/>/g, ">").replace(/&/g, "&") : ''; // Decode HTML entities
         }
 
         // --- Populate Templates on Load ---
@@ -599,237 +596,78 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
         const play = () => {
             if (!synth && Tone.context && Tone.context.state !== 'running') { setTimeout(play, 100); return; } else if (!synth && Tone.context && Tone.context.state === 'running') { synth = new Tone.Synth().toDestination(); } else if (!synth){ return; /* Audio context failed */ }
             const now = Tone.now();
-            switch(action) {
+            try {
+              switch(action) {
                 case 'arrive': synth.triggerAttackRelease("C4", "8n", now); synth.triggerAttackRelease("G4", "8n", now + 0.2); if ('vibrate' in navigator) navigator.vibrate(50); break;
                 case 'depart': synth.triggerAttackRelease("G4", "8n", now); synth.triggerAttackRelease("C4", "8n", now + 0.2); if ('vibrate' in navigator) navigator.vibrate(50); break;
                 case 'extend': synth.triggerAttackRelease("A4", "16n", now); if ('vibrate' in navigator) navigator.vibrate(50); break;
                 case 'safe': synth.triggerAttackRelease("C5", "8n", now); if ('vibrate' in navigator) navigator.vibrate([50, 50, 50]); break;
                 case 'warning': synth.triggerAttackRelease("E5", "16n", now); synth.triggerAttackRelease("G5", "16n", now + 0.2); if ('vibrate' in navigator) navigator.vibrate([800, 200, 800]); break;
                 case 'panic': synth.triggerAttackRelease("G5", "16n", now); synth.triggerAttackRelease("G5", "16n", now + 0.1); synth.triggerAttackRelease("G5", "16n", now + 0.2); if ('vibrate' in navigator) navigator.vibrate([200, 100, 200, 100, 200]); break;
-                case 'checkin': if(synth && synth.context.state === 'running'){ try { const osc = new Tone.Oscillator(440, "sine").connect(synth.toDestination()).start().stop("+0.1"); } catch(oscErr){console.error("Tone Oscillator error:", oscErr)} } if ('vibrate' in navigator) navigator.vibrate(500); break;
-            }
+                case 'checkin': if(synth && synth.context.state === 'running'){ const osc = new Tone.Oscillator(440, "sine").connect(synth.toDestination()).start().stop("+0.1"); } if ('vibrate' in navigator) navigator.vibrate(500); break;
+              }
+            } catch (toneError) {
+                console.error("Tone.js error during playback:", action, toneError);
+                // Attempt simple vibration as fallback?
+                if (['warning', 'panic', 'checkin'].includes(action) && 'vibrate' in navigator) navigator.vibrate(500);
+            }
         };
         play();
     }
     function navigate(page) { Object.values(pages).forEach(p => { p.classList.remove('active'); p.classList.add('hidden'); }); if (pages[page]) { pages[page].classList.remove('hidden'); pages[page].classList.add('active'); } }
     function showModal(modalKey, onShow) {
         const modal = modals[modalKey];
-        modals.backdrop.classList.remove('hidden');
-        modals.backdrop.classList.add('flex');
-        Object.values(modals).forEach(m => {
-            if (m !== modals.backdrop && m !== modal) m.classList.add('hidden'); // Ensure only the target modal is potentially visible
-        });
-        if (modal) {
-            modal.classList.remove('hidden');
-            if (onShow) onShow();
-        }
+        modals.backdrop.classList.remove('hidden'); modals.backdrop.classList.add('flex');
+        Object.values(modals).forEach(m => { if (m !== modals.backdrop && m !== modal) m.classList.add('hidden'); });
+        if (modal) { modal.classList.remove('hidden'); if (onShow) onShow(); }
     }
     function hideModals() { modals.backdrop.classList.add('hidden'); modals.backdrop.classList.remove('flex'); }
     function showAlert(title, message) { document.getElementById('alertModalTitle').textContent = title; document.getElementById('alertModalMessage').textContent = message; showModal('alert'); }
-    function loadState() { try { const savedState = JSON.parse(localStorage.getItem('loneWorkerState')); if (savedState) { const mergedSettings = { ...state.settings, ...savedState.settings }; state = { ...state, ...savedState, settings: mergedSettings }; if (state.activeVisit && state.activeVisit.startTime) { state.activeVisit.startTime = new Date(state.activeVisit.startTime); } if(state.activeVisit && state.activeVisit.anticipatedDepartureTime){ state.activeVisit.anticipatedDepartureTime = new Date(state.activeVisit.anticipatedDepartureTime); } } } catch(e){ console.error("Error loading state:", e); localStorage.removeItem('loneWorkerState'); /* Clear corrupted state */ } const travellingExists = state.locations.some(loc => loc.id === 'loc_travelling_default'); if (!travellingExists) { state.locations.push({ id: 'loc_travelling_default', name: 'Travelling', address: 'GPS updates will be sent every 15 minutes.' }); saveState(); } const urlParams = new URLSearchParams(window.location.search); const scriptUrlFromParam = urlParams.get('scriptUrl'); if (scriptUrlFromParam && !state.settings.googleSheetUrl) { state.settings.googleSheetUrl = scriptUrlFromParam; saveState(); } }
+    function loadState() { try { const savedState = JSON.parse(localStorage.getItem('loneWorkerState')); if (savedState) { const mergedSettings = { ...state.settings, ...savedState.settings }; state = { ...state, ...savedState, settings: mergedSettings }; if (state.activeVisit && state.activeVisit.startTime) { state.activeVisit.startTime = new Date(state.activeVisit.startTime); } if(state.activeVisit && state.activeVisit.anticipatedDepartureTime){ state.activeVisit.anticipatedDepartureTime = new Date(state.activeVisit.anticipatedDepartureTime); } } } catch(e){ console.error("Error loading state:", e); localStorage.removeItem('loneWorkerState'); } const travellingExists = state.locations.some(loc => loc.id === 'loc_travelling_default'); if (!travellingExists) { state.locations.push({ id: 'loc_travelling_default', name: 'Travelling', address: 'GPS updates will be sent every 15 minutes.' }); saveState(); } const urlParams = new URLSearchParams(window.location.search); const scriptUrlFromParam = urlParams.get('scriptUrl'); if (scriptUrlFromParam && !state.settings.googleSheetUrl) { state.settings.googleSheetUrl = scriptUrlFromParam; saveState(); } }
     function saveState() { try { localStorage.setItem('loneWorkerState', JSON.stringify(state)); } catch(e) { console.error("Error saving state:", e); showAlert("Storage Error", "Could not save settings. Local storage might be full or disabled."); } }
-    function renderLocations() { locationList.innerHTML = ''; if (state.locations.length === 0) { locationList.innerHTML = \`<p class="text-gray-500 text-center">No locations added yet.<\/p>\`; } state.locations.sort((a,b) => a.name.localeCompare(b.name)).forEach(loc => { const isSelected = loc.id === state.selectedLocationId; const locationEl = document.createElement('div'); locationEl.className = \`selectable-item p-3 rounded-lg cursor-pointer border-2 transition-transform duration-100 \${isSelected ? 'bg-blue-900/50 border-blue-500' : 'bg-gray-800 border-transparent hover:border-gray-600'}\`; locationEl.innerHTML = \`<div class="flex justify-between items-center"><div><p class="font-semibold">\${loc.name}<\/p><p class="text-sm text-gray-400">\${loc.address}<\/p><\/div><button class="edit-location-btn p-2 rounded-full hover:bg-gray-700" data-id="\${loc.id}"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"><\/path><\/svg><\/button><\/div>\`; locationList.appendChild(locationEl); }); }
+    function renderLocations() { locationList.innerHTML = ''; if (state.locations.length === 0) { locationList.innerHTML = \`<p class="text-gray-500 text-center">No locations added yet.<\/p>\`; } state.locations.sort((a,b) => (a.name === 'Travelling' ? -1 : b.name === 'Travelling' ? 1 : a.name.localeCompare(b.name))).forEach(loc => { const isSelected = loc.id === state.selectedLocationId; const locationEl = document.createElement('div'); locationEl.className = \`selectable-item p-3 rounded-lg cursor-pointer border-2 transition-transform duration-100 \${isSelected ? 'bg-blue-900/50 border-blue-500' : 'bg-gray-800 border-transparent hover:border-gray-600'}\`; locationEl.innerHTML = \`<div class="flex justify-between items-center"><div><p class="font-semibold">\${loc.name}<\/p><p class="text-sm text-gray-400">\${loc.address}<\/p><\/div><button class="edit-location-btn p-2 rounded-full hover:bg-gray-700" data-id="\${loc.id}"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"><\/path><\/svg><\/button><\/div>\`; locationList.appendChild(locationEl); }); }
     function formatDuration(minutes) { if (minutes < 60) return \`\${minutes} mins\`; const hours = Math.floor(minutes / 60); const mins = minutes % 60; return \`\${hours}h\${mins > 0 ? \` \${mins}m\` : ''}\`; }
-    function updateArrivedButtonState() { if (state.selectedLocationId && state.visitDurationMinutes > 0) { arrivedBtn.disabled = false; arrivedBtn.classList.remove('bg-gray-700', 'text-gray-400'); arrivedBtn.classList.add('bg-green-600', 'hover:bg-green-700', 'text-white'); arrivedBtn.textContent = 'ON SITE (Hold 1.5s)'; } else { arrivedBtn.disabled = true; arrivedBtn.classList.add('bg-gray-700', 'text-gray-400'); arrivedBtn.classList.remove('bg-green-600', 'hover:bg-green-700', 'text-white'); if (!state.selectedLocationId) { arrivedBtn.textContent = 'Select Location'; } else { arrivedBtn.textContent = 'Set Duration'; } } }
+    function updateArrivedButtonState() { const canArrive = state.selectedLocationId && state.visitDurationMinutes > 0; arrivedBtn.disabled = !canArrive; arrivedBtn.classList.toggle('bg-gray-700', !canArrive); arrivedBtn.classList.toggle('text-gray-400', !canArrive); arrivedBtn.classList.toggle('bg-green-600', canArrive); arrivedBtn.classList.toggle('hover:bg-green-700', canArrive); arrivedBtn.classList.toggle('text-white', canArrive); if (!state.selectedLocationId) { arrivedBtn.textContent = 'Select Location'; } else if (state.visitDurationMinutes <= 0) { arrivedBtn.textContent = 'Set Duration'; } else { arrivedBtn.textContent = 'ON SITE (Hold 1.5s)'; } }
     function sendToGoogleSheet(data) {
-        if (!state.settings.googleSheetUrl) {
-            console.error("Google Sheet URL is not set.");
-            showAlert("Error", "Google Sheet URL is not configured in settings. Data was not saved.");
-            return;
-        }
-
+        if (!state.settings.googleSheetUrl) { console.error("URL Missing"); showAlert("Error", "URL Missing"); return; }
         const payload = { ...data, "Worker Name": state.settings.workerName, "Worker Phone Number": state.settings.workerPhone, "Emergency Contact Name": state.settings.emergencyName, "Emergency Contact Number": state.settings.emergencyPhone, "Emergency Contact Email": state.settings.emergencyEmail, "Escalation Contact Name": state.settings.escalationName, "Escalation Contact Number": state.settings.escalationPhone, "Escalation Contact Email": state.settings.escalationEmail };
-
-        const formData = new FormData();
-        for (const key in payload) {
-            formData.append(key, payload[key] || ''); // Ensure values are strings, even if empty
-        }
-
-        fetch(state.settings.googleSheetUrl, {
-            method: 'POST',
-            mode: 'no-cors', // Important for cross-origin POST to Apps Script deployed for 'Anyone'
-            body: new URLSearchParams(formData) // Correctly formats as application/x-www-form-urlencoded
-        }).then(() => console.log('Data sent to Google Sheet:', data))
-          .catch(error => {
-            console.error('Error sending data to Google Sheet:', error);
-            // Avoid alert for every minor network blip? Maybe retry logic?
-            // For now, keep the alert for user feedback.
-            showAlert("Network Error", "Failed to send data. Please check connection and try again.");
-        });
+        const formData = new FormData(); for (const key in payload) { formData.append(key, payload[key] || ''); }
+        fetch(state.settings.googleSheetUrl, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(formData) })
+          .then(() => console.log('Data sent:', data))
+          .catch(error => { console.error('Send Error:', error); showAlert("Network Error", "Failed to send data. Check connection."); });
     }
-    function withPinVerification(callback, isDuressAction = false) { if (!state.settings.pinCode || state.settings.pinCode.length !== 4) { showAlert("PIN Not Set", "Please set a 4-digit PIN in settings."); return; } if (isDuressAction && (!state.settings.duressPin || state.settings.duressPin.length !== 4)) { showAlert("Duress PIN Not Set", "Please set a 4-digit Duress PIN in settings to use this feature."); return; } showModal('pin', () => document.getElementById('pinInput').focus() ); const confirmHandler = () => { const pinEntered = document.getElementById('pinInput').value; if (pinEntered === state.settings.pinCode) { hideModals(); document.getElementById('pinInput').value = ''; callback(false); // Not duress } else if (isDuressAction && pinEntered === state.settings.duressPin) { hideModals(); document.getElementById('pinInput').value = ''; callback(true); // Duress activated } else { showAlert("Incorrect PIN", "The PIN you entered is incorrect."); document.getElementById('pinInput').value = ''; document.getElementById('pinInput').focus(); } cleanup(); }; const cancelHandler = () => { document.getElementById('pinInput').value = ''; hideModals(); cleanup(); }; const inputHandler = (e) => { if (e.target.value.length === 4) { confirmHandler(); } }; const cleanup = () => { document.getElementById('confirmPinBtn').removeEventListener('click', confirmHandler); document.getElementById('cancelPinBtn').removeEventListener('click', cancelHandler); document.getElementById('pinInput').removeEventListener('input', inputHandler); }; document.getElementById('confirmPinBtn').addEventListener('click', confirmHandler); document.getElementById('cancelPinBtn').addEventListener('click', cancelHandler); document.getElementById('pinInput').addEventListener('input', inputHandler); }
+    function withPinVerification(callback, isDuressAction = false) { if (!state.settings.pinCode || state.settings.pinCode.length !== 4) { showAlert("PIN Not Set", "Please set a 4-digit PIN in settings."); return; } if (isDuressAction && (!state.settings.duressPin || state.settings.duressPin.length !== 4)) { showAlert("Duress PIN Not Set", "Please set a 4-digit Duress PIN in settings."); return; } showModal('pin', () => { pinInput.value = ''; pinInput.focus(); }); let confirmHandler, cancelHandler, inputHandler, cleanupHandler; cleanupHandler = () => { confirmPinBtn.removeEventListener('click', confirmHandler); cancelPinBtn.removeEventListener('click', cancelHandler); pinInput.removeEventListener('input', inputHandler); }; confirmHandler = () => { const pinEntered = pinInput.value; if (pinEntered === state.settings.pinCode) { hideModals(); cleanupHandler(); callback(false); } else if (isDuressAction && pinEntered === state.settings.duressPin) { hideModals(); cleanupHandler(); callback(true); } else { pinInput.value = ''; pinInput.focus(); /* Optionally add feedback */ } }; cancelHandler = () => { hideModals(); cleanupHandler(); }; inputHandler = (e) => { if (e.target.value.length === 4) confirmHandler(); }; confirmPinBtn.addEventListener('click', confirmHandler); cancelPinBtn.addEventListener('click', cancelHandler); pinInput.addEventListener('input', inputHandler); }
     let visitInterval;
     function handleArriveLongPress() { playSoundAndVibrate('arrive'); attemptStartVisit(); }
     function handleDepartLongPress() { playSoundAndVibrate('depart'); depart(); }
-    function handleExtendLongPress() { withPinVerification((isDuress) => { if (isDuress) { /* Should not happen if isDuressAction=false */ return; } playSoundAndVibrate('extend'); extendVisit(); }); }
-    function handleSafeLongPress() { withPinVerification(iamSafe, true); } // Allow duress pin for 'I am Safe'
-    function attemptStartVisit() { // Request GPS permission *before* starting visit if possible
-        if ('geolocation' in navigator && 'permissions' in navigator) {
-             navigator.permissions.query({name:'geolocation'}).then(permissionStatus => {
-                 console.log('Geolocation permission state:', permissionStatus.state);
-                 if (permissionStatus.state === 'granted') {
-                     executeStartVisit(); // Permission already granted
-                 } else if (permissionStatus.state === 'prompt') {
-                     // Ask for permission first, then start if granted
-                     navigator.geolocation.getCurrentPosition(
-                         () => { console.log("GPS granted on prompt."); executeStartVisit(); },
-                         (error) => { console.error("GPS denied on prompt:", error.message); showAlert("GPS Denied", "Location access was denied. Alerts will use the address. Check browser settings."); executeStartVisit(); /* Start anyway */ },
-                         { timeout: 10000, enableHighAccuracy: true }
-                     );
-                 } else { // Denied or not supported
-                     showAlert("GPS Not Available", "Could not access location. Alerts will use the address. Check browser/system settings.");
-                     executeStartVisit(); // Start anyway
-                 }
-                 permissionStatus.onchange = () => console.log('Geolocation permission state changed:', permissionStatus.state);
-             });
-         } else { // Fallback if Permissions API not supported
-              showAlert("GPS Check Skipped", "Could not check GPS permission beforehand. Proceeding...");
-              executeStartVisit();
-         }
-    }
-    async function executeStartVisit() { if (!navigator.onLine) { showAlert("No Network", "A network connection is required to start a visit."); return; } try{ if (navigator.getBattery) { const battery = await navigator.getBattery(); if (battery.level < 0.20 && !battery.charging) { showAlert("Low Battery", \`Battery is at \${Math.floor(battery.level * 100)}%. It may not last for the duration of this visit.\`); } } } catch(e){console.warn("Battery API error:", e)} const location = state.locations.find(l => l.id === state.selectedLocationId); if (!location) { showAlert("Error", "Selected location not found."); return; } const now = new Date(); const anticipatedDepartureTime = new Date(now.getTime() + state.visitDurationMinutes * 60 * 1000); state.activeVisit = { locationId: location.id, locationName: location.name, /* Store name for easier access */ startTime: now, anticipatedDepartureTime: anticipatedDepartureTime, arrivalTimeForSheet: now.toISOString(), alertState: 0, preWarningSent: false, lastGpsAttemptTime: null, lastTravelGpsTime: null, nextCheckinTime: CHECKIN_ENABLED ? now.getTime() + CHECKIN_INTERVAL * 60 * 1000 : null, batteryAlertSent: false }; if (location.name === 'Travelling') { state.activeVisit.lastTravelGpsTime = now.getTime(); tryGetGps("Started travelling"); showAlert("GPS Tracking Active", "For 'Travelling' to work best, please keep this app open on your screen during your journey."); } else { if (!localStorage.getItem('gpsWarningShown')) { showAlert("GPS Tracking Notice", "For reliable GPS tracking in an emergency, please keep this app open on your screen during your visit."); localStorage.setItem('gpsWarningShown', 'true'); } } saveState(); sendToGoogleSheet({ "Date": now.toLocaleDateString('en-CA'), // YYYY-MM-DD format suitable for sheets "Location Name": location.name, "Location Address": location.address, "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Anticipated Departure Time": anticipatedDepartureTime.toISOString(), "Alarm Status": 'ON SITE', }); enterLockedScreen(); }
-    function enterLockedScreen() { if (!state.activeVisit) return; document.getElementById('lockedLocationName').textContent = state.activeVisit.locationName || 'Unknown'; updateLockedScreen(); navigate('locked'); if (visitInterval) clearInterval(visitInterval); // Clear any existing interval visitInterval = setInterval(tick, 1000); }
-    function updateLockedScreen() { if (!state.activeVisit || !state.activeVisit.anticipatedDepartureTime) return; const now = new Date(); const departureMs = state.activeVisit.anticipatedDepartureTime.getTime(); const nowMs = now.getTime(); const remainingMs = departureMs - nowMs; if (remainingMs > 0) { const hours = Math.floor(remainingMs / 3600000); const minutes = Math.floor((remainingMs % 3600000) / 60000); const seconds = Math.floor((remainingMs % 60000) / 1000); document.getElementById('countdownTimer').textContent = \`\${String(hours).padStart(2, '0')}:\${String(minutes).padStart(2, '0')}:\${String(seconds).padStart(2, '0')}\`; document.getElementById('countdownTimer').classList.remove('text-red-500', 'animate-pulse'); } else { const overdueMs = nowMs - departureMs; const hours = Math.floor(overdueMs / 3600000); const minutes = Math.floor((overdueMs % 3600000) / 60000); const seconds = Math.floor((overdueMs % 60000) / 1000); document.getElementById('countdownTimer').textContent = \`+\${String(hours).padStart(2, '0')}:\${String(minutes).padStart(2, '0')}:\${String(seconds).padStart(2, '0')}\`; document.getElementById('countdownTimer').classList.add('text-red-500', 'animate-pulse'); } document.getElementById('lockedAnticipatedTime').textContent = state.activeVisit.anticipatedDepartureTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit'}); // Update alert visibility based on state alertActiveContainer.classList.toggle('hidden', state.activeVisit.alertState < 2); normalButtonsContainer.classList.toggle('hidden', state.activeVisit.alertState >= 2); }
+    function handleExtendLongPress() { withPinVerification((isDuress) => { if (!isDuress) { playSoundAndVibrate('extend'); extendVisit(); } }); }
+    function handleSafeLongPress() { withPinVerification(iamSafe, true); }
+    function attemptStartVisit() { if ('geolocation' in navigator && 'permissions' in navigator) { navigator.permissions.query({name:'geolocation'}).then(status => { if (status.state === 'granted') { executeStartVisit(); } else if (status.state === 'prompt') { navigator.geolocation.getCurrentPosition( () => executeStartVisit(), () => { showAlert("GPS Denied", "Location denied. Alerts use address."); executeStartVisit(); }, { timeout: 10000, enableHighAccuracy: true }); } else { showAlert("GPS Blocked", "Location blocked. Alerts use address."); executeStartVisit(); } }); } else { executeStartVisit(); } }
+    async function executeStartVisit() { if (!navigator.onLine) { showAlert("No Network", "Network connection required."); return; } try{ if (navigator.getBattery) { const battery = await navigator.getBattery(); if (battery.level < 0.20 && !battery.charging) showAlert("Low Battery", \`Battery \${Math.floor(battery.level * 100)}% may not last.\`); } } catch(e){} const location = state.locations.find(l => l.id === state.selectedLocationId); if (!location) return; const now = new Date(); const anticipatedDepartureTime = new Date(now.getTime() + state.visitDurationMinutes * 60 * 1000); state.activeVisit = { locationId: location.id, locationName: location.name, startTime: now, anticipatedDepartureTime: anticipatedDepartureTime, arrivalTimeForSheet: now.toISOString(), alertState: 0, preWarningSent: false, lastGpsAttemptTime: null, lastTravelGpsTime: null, nextCheckinTime: CHECKIN_ENABLED ? now.getTime() + CHECKIN_INTERVAL * 60 * 1000 : null, batteryAlertSent: false }; if (location.name === 'Travelling') { state.activeVisit.lastTravelGpsTime = now.getTime(); tryGetGps("Started travelling"); } saveState(); sendToGoogleSheet({ "Date": now.toLocaleDateString('en-CA'), "Location Name": location.name, "Location Address": location.address, "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Anticipated Departure Time": anticipatedDepartureTime.toISOString(), "Alarm Status": 'ON SITE', }); enterLockedScreen(); }
+    function enterLockedScreen() { if (!state.activeVisit) return; document.getElementById('lockedLocationName').textContent = state.activeVisit.locationName || '?'; updateLockedScreen(); navigate('locked'); if (visitInterval) clearInterval(visitInterval); visitInterval = setInterval(tick, 1000); }
+    function updateLockedScreen() { if (!state.activeVisit || !state.activeVisit.anticipatedDepartureTime) return; const now = new Date(); const departureMs = state.activeVisit.anticipatedDepartureTime.getTime(); const nowMs = now.getTime(); const remainingMs = departureMs - nowMs; if (remainingMs > 0) { const h = Math.floor(remainingMs / 3600000); const m = Math.floor((remainingMs % 3600000) / 60000); const s = Math.floor((remainingMs % 60000) / 1000); countdownTimer.textContent = \`\${String(h).padStart(2, '0')}:\${String(m).padStart(2, '0')}:\${String(s).padStart(2, '0')}\`; countdownTimer.classList.remove('text-red-500', 'animate-pulse'); } else { const oMs = nowMs - departureMs; const h = Math.floor(oMs / 3600000); const m = Math.floor((oMs % 3600000) / 60000); const s = Math.floor((oMs % 60000) / 1000); countdownTimer.textContent = \`+\${String(h).padStart(2, '0')}:\${String(m).padStart(2, '0')}:\${String(s).padStart(2, '0')}\`; countdownTimer.classList.add('text-red-500', 'animate-pulse'); } lockedAnticipatedTime.textContent = state.activeVisit.anticipatedDepartureTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit'}); alertActiveContainer.classList.toggle('hidden', state.activeVisit.alertState < 2); normalButtonsContainer.classList.toggle('hidden', state.activeVisit.alertState >= 2); }
     function depart() { if (!state.activeVisit) return; const now = new Date(); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Actual Departure Time": now.toISOString(), "Alarm Status": 'DEPARTED', }); endVisit(); }
-    function extendVisit() { if (!state.activeVisit) return; state.activeVisit.anticipatedDepartureTime = new Date(state.activeVisit.anticipatedDepartureTime.getTime() + 10 * 60 * 1000); state.activeVisit.preWarningSent = false; // Allow warning again state.activeVisit.alertState = Math.min(state.activeVisit.alertState, 1); // Reset alert state if extending before overdue saveState(); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Anticipated Departure Time": state.activeVisit.anticipatedDepartureTime.toISOString(), "Notes": \`Extended 10 mins at \${new Date().toISOString()}\`, "Alarm Status": 'ON SITE' /* Reset status if it was in alert */ }); updateLockedScreen(); }
-    function iamSafe(isDuress) { if (!state.activeVisit) return; 
-        const now = new Date();
-        if (isDuress) {
-            console.log("Duress PIN entered for 'I am Safe'.");
-             sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Alarm Status": 'DURESS_CODE_ACTIVATED', "Notes": 'Worker activated silent duress alarm via I AM SAFE button.' });
-            // Visually mimic normal shutdown but don't play sound or show confirmation
-            endVisit(); // End visit immediately without sound/alert
-        } else {
-            console.log("Normal PIN entered for 'I am Safe'.");
-            playSoundAndVibrate('safe');
-            sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Actual Departure Time": now.toISOString(), "Alarm Status": 'SAFE - MANUALLY CLEARED', "Notes": 'Worker confirmed they are safe after an alert was triggered.' }); 
-            showAlert("Confirmation", "Your status has been updated to SAFE.");
-            endVisit(); // End visit after showing confirmation
-        }
-    }
-    function endVisit() { if(visitInterval) clearInterval(visitInterval); visitInterval = null; state.activeVisit = null; state.selectedLocationId = null; state.visitDurationMinutes = 0; durationSlider.value = 0; durationDisplay.textContent = formatDuration(0); saveState(); navigate('main'); renderLocations(); updateArrivedButtonState(); document.getElementById('alertActiveContainer').classList.add('hidden'); document.getElementById('normalButtonsContainer').classList.remove('hidden'); }
-    function tryGetGps(notePrefix = "GPS Check") { if(!state.activeVisit || !navigator.geolocation) return; state.activeVisit.lastGpsAttemptTime = new Date().getTime(); console.log(\`Attempting GPS: \${notePrefix}\`); navigator.geolocation.getCurrentPosition( (position) => { const { latitude, longitude, accuracy } = position.coords; console.log(\`GPS Success: Lat \${latitude}, Lon \${longitude}, Accuracy \${accuracy}m\`); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Last Known GPS": \`\${latitude},\${longitude}\`, "GPS Timestamp": new Date().toISOString(), "Notes": \`\${notePrefix}: GPS OK (Accuracy: \${accuracy ? accuracy.toFixed(1) : '?'}m)\` }); }, (error) => { console.error(\`GPS Error (\${notePrefix}):\`, error.code, error.message); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Notes": \`\${notePrefix}: GPS FAILED (Code: \${error.code})\` }); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 } ); }
-    async function tick() { if (!state.activeVisit) { if(visitInterval) clearInterval(visitInterval); visitInterval = null; return; } updateLockedScreen(); const nowMs = new Date().getTime(); const departureMs = state.activeVisit.anticipatedDepartureTime.getTime(); const remainingMinutes = (departureMs - nowMs) / 60000; // Pre-departure warning sound if (remainingMinutes <= PRE_ALERT_OFFSET && remainingMinutes > 0 && !state.activeVisit.preWarningSent) { state.activeVisit.preWarningSent = true; playSoundAndVibrate('warning'); saveState(); } // Travelling GPS update if (state.activeVisit.locationName === 'Travelling') { const fifteenMinutesMs = 15 * 60 * 1000; if (!state.activeVisit.lastTravelGpsTime || (nowMs - state.activeVisit.lastTravelGpsTime) >= fifteenMinutesMs) { tryGetGps("Travelling update"); state.activeVisit.lastTravelGpsTime = nowMs; saveState(); } } // Overdue logic const overdueMinutes = (nowMs - departureMs) / 60000; if (overdueMinutes > 0 && state.activeVisit.alertState < 2) { // Only escalate if not already fully alerted // First time going overdue or just before first alert -> get GPS if (state.activeVisit.alertState < 1.5 && overdueMinutes >= (FIRST_ALERT_MINUTES - PRE_ALERT_OFFSET)) { state.activeVisit.alertState = 1.5; playSoundAndVibrate('warning'); // Sound warning again tryGetGps("Pre-alert GPS"); saveState(); } // Reaching first alert threshold if (overdueMinutes >= FIRST_ALERT_MINUTES) { console.log("First alert threshold reached."); state.activeVisit.alertState = 2; // Mark as fully alerted sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Alarm Status": 'ALERT SENT' /* Sheet trigger handles EMAIL_1_SENT */ }); // Update UI immediately updateLockedScreen(); saveState(); } } // Recurring GPS check when overdue if (state.activeVisit.alertState >= 2 && state.activeVisit.lastGpsAttemptTime && (nowMs - state.activeVisit.lastGpsAttemptTime) > (20 * 60 * 1000) /* 20 mins */) { tryGetGps("Recurring overdue GPS"); saveState(); } // Check-in logic if (CHECKIN_ENABLED && state.activeVisit.nextCheckinTime && nowMs >= state.activeVisit.nextCheckinTime && state.activeVisit.alertState < 2 /* Don't checkin if already in alert */) { triggerCheckin(); state.activeVisit.nextCheckinTime = null; // Prevent re-triggering immediately saveState(); } // Low battery check (run periodically) if (navigator.getBattery && !state.activeVisit.batteryAlertSent) { try { const battery = await navigator.getBattery(); if (battery.level < 0.15 && !battery.charging) { console.log("Low battery detected:", battery.level); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Notes": \`LOW BATTERY WARNING: \${Math.floor(battery.level * 100)}%\` }); state.activeVisit.batteryAlertSent = true; saveState(); } } catch(e){console.warn("Could not check battery:", e)} } }
-    function triggerPanicAlert() { if (!state.activeVisit) { showAlert("Error", "Cannot trigger panic - no active visit."); return; } playSoundAndVibrate('panic'); showAlert("PANIC ALERT SENT", "An immediate alert has been sent to your emergency contact."); state.activeVisit.alertState = 2; // Mark as fully alerted updateLockedScreen(); // Update UI immediately const sendPanic = (gpsData) => { const data = { "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Alarm Status": 'EMERGENCY - PANIC BUTTON', "Notes": 'Panic button activated by worker.' }; if (gpsData) { data["Last Known GPS"] = \`\${gpsData.latitude},\${gpsData.longitude}\`; data["GPS Timestamp"] = new Date().toISOString(); data.Notes += ' GPS successfully retrieved.'; } else { data.Notes += ' Failed to retrieve GPS on panic.'; } sendToGoogleSheet(data); saveState(); // Save alert state }; if ('geolocation' in navigator) { navigator.geolocation.getCurrentPosition( (position) => sendPanic(position.coords), () => sendPanic(null), { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 } ); } else { sendPanic(null); } }
-    function triggerCheckin() {
-        showModal('checkin');
-        let remaining = 120; // 2 minutes
-        const countdownEl = document.getElementById('checkinCountdown');
-      countdownEl.textContent = "2:00"; // Initial display
-        playSoundAndVibrate('checkin'); // Play immediately
-        checkinIntervalId = setInterval(() => playSoundAndVibrate('checkin'), 5000); // Repeat sound/vibrate
-        checkinCountdownInterval = setInterval(() => {
-            remaining--;
-            const minutes = Math.floor(remaining / 60);
-            const seconds = remaining % 60;
-            countdownEl.textContent = \`\${minutes}:\${String(seconds).padStart(2, '0')}\`;
-            if (remaining <= 0) {
-                clearInterval(checkinCountdownInterval); checkinCountdownInterval = null;
-                clearInterval(checkinIntervalId); checkinIntervalId = null;
-                hideModals();
-                if (state.activeVisit) { // Only send if visit still active
-                    state.activeVisit.alertState = 2; // Mark as alerted
-                    updateLockedScreen(); // Show alert UI
-                    sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Alarm Status": 'MISSED_CHECKIN', "Notes": 'Worker missed a scheduled check-in.' });
-                    tryGetGps("Missed Checkin GPS"); // Attempt GPS on missed checkin
-                    saveState();
-                }
-            }
-        }, 1000);
-    }
-    function handleCheckinOK() {
-        if(checkinCountdownInterval) clearInterval(checkinCountdownInterval); checkinCountdownInterval = null;
-        if(checkinIntervalId) clearInterval(checkinIntervalId); checkinIntervalId = null;
-        hideModals();
-        if (state.activeVisit) { // Set next checkin time only if visit active
-            state.activeVisit.nextCheckinTime = new Date().getTime() + CHECKIN_INTERVAL * 60 * 1000;
-            console.log("Checkin OK. Next checkin scheduled.");
-            saveState();
-        }
-    }
-    function initEventListeners() {
-        document.body.addEventListener('pointerdown', initAudio, { once: true });
-        settingsBtn.addEventListener('click', () => { Object.keys(state.settings).forEach(key => { const input = document.getElementById(key); if (input) { input.value = state.settings[key] || ''; input.disabled = (key === 'googleSheetUrl' && input.value); input.classList.toggle('bg-gray-700', input.disabled); input.classList.toggle('text-gray-500', input.disabled); } }); navigate('settings'); });
-        closeSettingsBtn.addEventListener('click', () => navigate('main'));
-        infoBtn.addEventListener('click', () => showModal('info'));
-        closeInfoModalBtn.addEventListener('click', hideModals);
-        alertModalOkBtn.addEventListener('click', hideModals);
-        checkinOkBtn.addEventListener('click', handleCheckinOK);
-        saveSettingsBtn.addEventListener('click', () => { let urlChanged = false; Object.keys(state.settings).forEach(key => { const input = document.getElementById(key); if (input && !input.disabled) { const oldValue = state.settings[key]; state.settings[key] = input.value; if (key === 'googleSheetUrl' && input.value !== oldValue) urlChanged = true; } }); saveState(); showAlert("Success", "Settings have been saved."); if (urlChanged) { document.getElementById('googleSheetUrl').disabled = true; document.getElementById('googleSheetUrl').classList.add('bg-gray-700', 'text-gray-500'); } navigate('main'); });
-        addLocationBtn.addEventListener('click', () => { showModal('location', () => { document.getElementById('locationModalTitle').textContent = 'Add New Location'; document.getElementById('locationName').value = ''; document.getElementById('locationAddress').value = ''; document.getElementById('deleteLocationBtn').classList.add('hidden'); document.querySelector('#saveLocationBtn').dataset.id = ''; document.getElementById('locationName').focus(); }); });
-        locationList.addEventListener('click', e => { 
-            const editBtn = e.target.closest('.edit-location-btn'); 
-            if (editBtn) { 
-                e.stopPropagation(); 
-                const locId = editBtn.dataset.id; 
-                const location = state.locations.find(l => l.id === locId); 
-                if (!location) return;
-                showModal('location', () => { 
-                    document.getElementById('locationModalTitle').textContent = 'Edit Location'; 
-                    document.getElementById('locationName').value = location.name; 
-                    document.getElementById('locationAddress').value = location.address; 
-                    document.getElementById('deleteLocationBtn').classList.toggle('hidden', locId === 'loc_travelling_default');
-                    document.querySelector('#saveLocationBtn').dataset.id = locId; 
-                    document.querySelector('#deleteLocationBtn').dataset.id = locId; 
-                    document.getElementById('locationName').focus();
-                }); 
-            } else {
-                const item = e.target.closest('.selectable-item');
-                if (item) {
-                    const editButtonInside = item.querySelector('.edit-location-btn');
-                    if (editButtonInside) {
-                        const locId = editButtonInside.dataset.id;
-                        state.selectedLocationId = locId; 
-                        if('vibrate' in navigator) navigator.vibrate(20);
-                        renderLocations(); 
-                        updateArrivedButtonState();
-                    }
-                }
-            }
-        });
-        cancelLocationBtn.addEventListener('click', hideModals);
-        saveLocationBtn.addEventListener('click', () => { const id = document.querySelector('#saveLocationBtn').dataset.id; const name = document.getElementById('locationName').value.trim(); const address = document.getElementById('locationAddress').value.trim(); if (!name) { showAlert("Missing Name", "Please provide a name for the location."); document.getElementById('locationName').focus(); return; } if (!address) { showAlert("Missing Address", "Please provide an address or description for the location."); document.getElementById('locationAddress').focus(); return; } if (id) { const index = state.locations.findIndex(l => l.id === id); if(index > -1) { state.locations[index] = { ...state.locations[index], name, address }; } } else { state.locations.push({ id: \`loc_\${Date.now()}\`, name, address }); } saveState(); renderLocations(); hideModals(); });
-        deleteLocationBtn.addEventListener('click', (e) => { const id = e.target.dataset.id; if (id === 'loc_travelling_default') { showAlert('Cannot Delete', 'The "Travelling" location cannot be deleted.'); return; } state.locations = state.locations.filter(l => l.id !== id); if (state.selectedLocationId === id) { state.selectedLocationId = null; updateArrivedButtonState(); } saveState(); renderLocations(); hideModals(); });
-        useCurrentLocationBtn.addEventListener('click', () => { if (!navigator.geolocation) { showAlert("Not Supported", "Geolocation is not supported by your browser."); return; } useCurrentLocationBtn.textContent = "Getting location..."; useCurrentLocationBtn.disabled = true; navigator.geolocation.getCurrentPosition( (position) => { const { latitude, longitude } = position.coords; fetch(\`https://nominatim.openstreetmap.org/reverse?format=json&lat=\${latitude}&lon=\${longitude}\`).then(res => {if (!res.ok) throw new Error(\`HTTP error! status: \${res.status}\`); return res.json();}).then(data => { document.getElementById('locationAddress').value = data.display_name || \`\${latitude.toFixed(6)}, \${longitude.toFixed(6)}\`; }).catch((err) => { console.error("Nominatim reverse geocode error:", err); showAlert("Address Error", "Could not fetch street address. Using coordinates instead."); document.getElementById('locationAddress').value = \`\${latitude.toFixed(6)}, \${longitude.toFixed(6)}\`; }).finally(() => { useCurrentLocationBtn.textContent = "Use Current Location"; useCurrentLocationBtn.disabled = false; }); }, (err) => { showAlert("Location Error", \`Unable to retrieve location: \${err.message} (Code: \${err.code})\`); useCurrentLocationBtn.textContent = "Use Current Location"; useCurrentLocationBtn.disabled = false; }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }); });
-        durationSlider.addEventListener('input', (e) => { state.visitDurationMinutes = DURATION_STEPS[parseInt(e.target.value)]; durationDisplay.textContent = formatDuration(state.visitDurationMinutes); updateArrivedButtonState(); });
-        let tapCount = 0; let tapTimer = null; panicBtn.addEventListener('click', () => { tapCount++; if (tapCount === 1) { tapTimer = setTimeout(() => { tapCount = 0; }, 1500); } if (tapCount >= 3) { clearTimeout(tapTimer); tapCount = 0; triggerPanicAlert(); } }); // Trigger on 3 or more taps
-        
-        const applyLongPress = (element, callback, duration = 1500) => {
-            let timer; let startX, startY; const tolerance = 15; /* Increased tolerance */
-            const start = (e) => {
-                if (element.disabled) return; e.preventDefault();
-                if (e.touches && e.touches.length > 0) { startX = e.touches[0].clientX; startY = e.touches[0].clientY; } else if (e.clientX !== undefined && e.clientY !== undefined) { startX = e.clientX; startY = e.clientY;} else { startX = null; startY = null; }
-                element.classList.add('pressing');
-                timer = setTimeout(() => { if (timer) { callback(); } clearTimeout(timer); timer = null; element.classList.remove('pressing'); }, duration);
-            };
-            const cancel = () => { clearTimeout(timer); timer = null; element.classList.remove('pressing'); };
-            const move = (e) => {
-                if (timer && startX !== null && startY !== null) {
-                    let currentX, currentY;
-                    if (e.touches && e.touches.length > 0) { currentX = e.touches[0].clientX; currentY = e.touches[0].clientY; } else if (e.clientX !== undefined && e.clientY !== undefined) { currentX = e.clientX; currentY = e.clientY;} else { return; }
-                    const deltaX = Math.abs(currentX - startX); const deltaY = Math.abs(currentY - startY);
-                    if (deltaX > tolerance || deltaY > tolerance) { cancel(); }
-                }
-            };
-            element.addEventListener('mousedown', start); element.addEventListener('mouseup', cancel); element.addEventListener('mouseleave', cancel); element.addEventListener('mousemove', move);
-            element.addEventListener('touchstart', start, { passive: false }); element.addEventListener('touchend', cancel); element.addEventListener('touchcancel', cancel); element.addEventListener('touchmove', move, { passive: false });
-        };
-
-        applyLongPress(arrivedBtn, handleArriveLongPress); applyLongPress(departBtn, handleDepartLongPress); applyLongPress(extendBtn, handleExtendLongPress); applyLongPress(iamSafeBtn, handleSafeLongPress);
-    }
-    
+    function extendVisit() { if (!state.activeVisit) return; state.activeVisit.anticipatedDepartureTime = new Date(state.activeVisit.anticipatedDepartureTime.getTime() + 10 * 60 * 1000); state.activeVisit.preWarningSent = false; state.activeVisit.alertState = Math.min(state.activeVisit.alertState, 1); saveState(); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Anticipated Departure Time": state.activeVisit.anticipatedDepartureTime.toISOString(), "Notes": \`Extended 10 mins at \${new Date().toISOString()}\`, "Alarm Status": 'ON SITE' }); updateLockedScreen(); }
+    function iamSafe(isDuress) { if (!state.activeVisit) return; const now = new Date(); if (isDuress) { console.log("Duress PIN for 'I am Safe'."); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Alarm Status": 'DURESS_CODE_ACTIVATED', "Notes": 'Duress via I AM SAFE.' }); endVisit(); } else { console.log("Normal PIN for 'I am Safe'."); playSoundAndVibrate('safe'); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Actual Departure Time": now.toISOString(), "Alarm Status": 'SAFE - MANUALLY CLEARED', "Notes": 'Safe after alert.' }); showAlert("Confirmation", "Status updated to SAFE."); endVisit(); } }
+    function endVisit() { if(visitInterval) clearInterval(visitInterval); visitInterval = null; if(checkinIntervalId) clearInterval(checkinIntervalId); checkinIntervalId = null; if(checkinCountdownInterval) clearInterval(checkinCountdownInterval); checkinCountdownInterval = null; hideModals(); /* Ensure modals closed */ state.activeVisit = null; state.selectedLocationId = null; state.visitDurationMinutes = 0; durationSlider.value = 0; durationDisplay.textContent = formatDuration(0); saveState(); navigate('main'); renderLocations(); updateArrivedButtonState(); alertActiveContainer.classList.add('hidden'); normalButtonsContainer.classList.remove('hidden'); }
+    function tryGetGps(notePrefix = "GPS Check") { if(!state.activeVisit || !navigator.geolocation) return; state.activeVisit.lastGpsAttemptTime = Date.now(); console.log(\`GPS Attempt: \${notePrefix}\`); navigator.geolocation.getCurrentPosition( p => { console.log(\`GPS OK: \${p.coords.accuracy}m\`); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Last Known GPS": \`\${p.coords.latitude},\${p.coords.longitude}\`, "GPS Timestamp": new Date().toISOString(), "Notes": \`\${notePrefix}: GPS OK (\${p.coords.accuracy.toFixed(1)}m)\` }); }, e => { console.error(\`GPS Fail (\${notePrefix}): \${e.code} \${e.message}\`); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Notes": \`\${notePrefix}: GPS FAILED (\${e.code})\` }); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }); }
+    async function tick() { if (!state.activeVisit) { if(visitInterval) clearInterval(visitInterval); visitInterval = null; return; } updateLockedScreen(); const nowMs = Date.now(); const departureMs = state.activeVisit.anticipatedDepartureTime.getTime(); const remainingMins = (departureMs - nowMs) / 60000; if (remainingMins <= PRE_ALERT_OFFSET && remainingMins > 0 && !state.activeVisit.preWarningSent) { state.activeVisit.preWarningSent = true; playSoundAndVibrate('warning'); saveState(); } if (state.activeVisit.locationName === 'Travelling') { const travelIntervalMs = 15 * 60 * 1000; if (!state.activeVisit.lastTravelGpsTime || (nowMs - state.activeVisit.lastTravelGpsTime) >= travelIntervalMs) { tryGetGps("Travelling update"); state.activeVisit.lastTravelGpsTime = nowMs; saveState(); } } const overdueMins = (nowMs - departureMs) / 60000; if (overdueMins > 0 && state.activeVisit.alertState < 2) { if (state.activeVisit.alertState < 1.5 && overdueMins >= (FIRST_ALERT_MINUTES - PRE_ALERT_OFFSET)) { state.activeVisit.alertState = 1.5; playSoundAndVibrate('warning'); tryGetGps("Pre-alert GPS"); saveState(); } if (overdueMins >= FIRST_ALERT_MINUTES) { state.activeVisit.alertState = 2; sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Alarm Status": 'ALERT SENT' }); updateLockedScreen(); saveState(); } } if (state.activeVisit.alertState >= 2 && state.activeVisit.lastGpsAttemptTime && (nowMs - state.activeVisit.lastGpsAttemptTime) > (20 * 60 * 1000)) { tryGetGps("Recurring overdue GPS"); /* No need to save state here, tryGetGps sends update */ } if (CHECKIN_ENABLED && state.activeVisit.nextCheckinTime && nowMs >= state.activeVisit.nextCheckinTime && state.activeVisit.alertState < 2) { triggerCheckin(); state.activeVisit.nextCheckinTime = null; saveState(); } if (navigator.getBattery && !state.activeVisit.batteryAlertSent) { try { const bat = await navigator.getBattery(); if (bat.level < 0.15 && !bat.charging) { sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Notes": \`LOW BATTERY: \${Math.floor(bat.level * 100)}%\` }); state.activeVisit.batteryAlertSent = true; saveState(); } } catch(e){} } }
+    function triggerPanicAlert() { if (!state.activeVisit) { showAlert("Error", "No active visit."); return; } playSoundAndVibrate('panic'); showAlert("PANIC ALERT SENT", "Emergency contact notified."); state.activeVisit.alertState = 2; updateLockedScreen(); const sendPanic = (gps) => { const data = { "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Alarm Status": 'EMERGENCY - PANIC BUTTON', "Notes": 'Panic button activated.' }; if (gps) { data["Last Known GPS"] = \`\${gps.latitude},\${gps.longitude}\`; data["GPS Timestamp"] = new Date().toISOString(); data.Notes += ' GPS OK.'; } else { data.Notes += ' GPS failed.'; } sendToGoogleSheet(data); saveState(); }; if (navigator.geolocation) { navigator.geolocation.getCurrentPosition( p => sendPanic(p.coords), () => sendPanic(null), { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }); } else { sendPanic(null); } }
+    function triggerCheckin() { showModal('checkin'); let remaining = 120; const el = checkinCountdown; el.textContent = "2:00"; playSoundAndVibrate('checkin'); checkinIntervalId = setInterval(() => playSoundAndVibrate('checkin'), 5000); checkinCountdownInterval = setInterval(() => { remaining--; const m = Math.floor(remaining / 60); const s = remaining % 60; el.textContent = \`\${m}:\${String(s).padStart(2, '0')}\`; if (remaining <= 0) { clearInterval(checkinCountdownInterval); clearInterval(checkinIntervalId); hideModals(); if (state.activeVisit) { state.activeVisit.alertState = 2; updateLockedScreen(); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Alarm Status": 'MISSED_CHECKIN', "Notes": 'Missed check-in.' }); tryGetGps("Missed Checkin GPS"); saveState(); } } }, 1000); }
+    function handleCheckinOK() { if(checkinCountdownInterval) clearInterval(checkinCountdownInterval); if(checkinIntervalId) clearInterval(checkinIntervalId); hideModals(); if (state.activeVisit) { state.activeVisit.nextCheckinTime = Date.now() + CHECKIN_INTERVAL * 60 * 1000; saveState(); } }
+    function initEventListeners() { /* ... (Event listeners largely remain the same, ensure IDs match HTML) ... */ document.body.addEventListener('pointerdown', initAudio, { once: true }); settingsBtn.addEventListener('click', () => { Object.keys(state.settings).forEach(key => { const input = document.getElementById(key); if (input) { input.value = state.settings[key] || ''; input.disabled = (key === 'googleSheetUrl' && input.value); input.classList.toggle('bg-gray-700', input.disabled); input.classList.toggle('text-gray-500', input.disabled); } }); navigate('settings'); }); closeSettingsBtn.addEventListener('click', () => navigate('main')); infoBtn.addEventListener('click', () => showModal('info')); closeInfoModalBtn.addEventListener('click', hideModals); alertModalOkBtn.addEventListener('click', hideModals); checkinOkBtn.addEventListener('click', handleCheckinOK); saveSettingsBtn.addEventListener('click', () => { let urlChanged = false; Object.keys(state.settings).forEach(key => { const input = document.getElementById(key); if (input && !input.disabled) { const oldValue = state.settings[key]; state.settings[key] = input.value; if (key === 'googleSheetUrl' && input.value !== oldValue) urlChanged = true; } }); saveState(); showAlert("Success", "Settings saved."); if (urlChanged) { googleSheetUrl.disabled = true; googleSheetUrl.classList.add('bg-gray-700', 'text-gray-500'); } navigate('main'); }); addLocationBtn.addEventListener('click', () => { showModal('location', () => { locationModalTitle.textContent = 'Add Location'; locationName.value = ''; locationAddress.value = ''; deleteLocationBtn.classList.add('hidden'); saveLocationBtn.dataset.id = ''; locationName.focus(); }); }); locationList.addEventListener('click', e => { const editBtn = e.target.closest('.edit-location-btn'); if (editBtn) { e.stopPropagation(); const locId = editBtn.dataset.id; const loc = state.locations.find(l => l.id === locId); if (!loc) return; showModal('location', () => { locationModalTitle.textContent = 'Edit Location'; locationName.value = loc.name; locationAddress.value = loc.address; deleteLocationBtn.classList.toggle('hidden', locId === 'loc_travelling_default'); saveLocationBtn.dataset.id = locId; deleteLocationBtn.dataset.id = locId; locationName.focus(); }); } else { const item = e.target.closest('.selectable-item'); if (item) { const btn = item.querySelector('.edit-location-btn'); if (btn) { state.selectedLocationId = btn.dataset.id; if('vibrate' in navigator) navigator.vibrate(20); renderLocations(); updateArrivedButtonState(); } } } }); cancelLocationBtn.addEventListener('click', hideModals); saveLocationBtn.addEventListener('click', () => { const id = saveLocationBtn.dataset.id; const name = locationName.value.trim(); const addr = locationAddress.value.trim(); if (!name) { showAlert("Info", "Name required."); locationName.focus(); return; } if (!addr) { showAlert("Info", "Address required."); locationAddress.focus(); return; } if (id) { const idx = state.locations.findIndex(l => l.id === id); if(idx > -1) state.locations[idx] = { ...state.locations[idx], name, address: addr }; } else { state.locations.push({ id: \`loc_\${Date.now()}\`, name, address: addr }); } saveState(); renderLocations(); hideModals(); }); deleteLocationBtn.addEventListener('click', (e) => { const id = e.target.dataset.id; if (id === 'loc_travelling_default') return; state.locations = state.locations.filter(l => l.id !== id); if (state.selectedLocationId === id) { state.selectedLocationId = null; updateArrivedButtonState(); } saveState(); renderLocations(); hideModals(); }); useCurrentLocationBtn.addEventListener('click', () => { /* ... (Unchanged from previous) ... */ if (!navigator.geolocation) { showAlert("Not Supported", "Geolocation not supported."); return; } useCurrentLocationBtn.textContent = "Getting..."; useCurrentLocationBtn.disabled = true; navigator.geolocation.getCurrentPosition( p => { fetch(\`https://nominatim.openstreetmap.org/reverse?format=json&lat=\${p.coords.latitude}&lon=\${p.coords.longitude}\`).then(r => r.ok ? r.json() : Promise.reject(\`HTTP \${r.status}\`)).then(d => { locationAddress.value = d.display_name || \`\${p.coords.latitude.toFixed(6)}, \${p.coords.longitude.toFixed(6)}\`; }).catch(e => { console.error("Geocode error:", e); showAlert("Address Error", "Using coordinates."); locationAddress.value = \`\${p.coords.latitude.toFixed(6)}, \${p.coords.longitude.toFixed(6)}\`; }).finally(() => { useCurrentLocationBtn.textContent = "Use Current Location"; useCurrentLocationBtn.disabled = false; }); }, e => { showAlert("Location Error", \`\${e.message} (\${e.code})\`); useCurrentLocationBtn.textContent = "Use Current Location"; useCurrentLocationBtn.disabled = false; }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }); }); durationSlider.addEventListener('input', (e) => { state.visitDurationMinutes = DURATION_STEPS[parseInt(e.target.value)]; durationDisplay.textContent = formatDuration(state.visitDurationMinutes); updateArrivedButtonState(); }); let tapCount = 0; let tapTimer = null; panicBtn.addEventListener('click', () => { tapCount++; if (tapCount === 1) { tapTimer = setTimeout(() => { tapCount = 0; }, 1500); } if (tapCount >= 3) { clearTimeout(tapTimer); tapCount = 0; triggerPanicAlert(); } }); const applyLongPress = (element, callback, duration = 1500) => { let timer; let startX, startY; const tolerance = 15; const start = (e) => { if (element.disabled) return; e.preventDefault(); if (e.touches && e.touches.length > 0) { startX = e.touches[0].clientX; startY = e.touches[0].clientY; } else if (e.clientX !== undefined && e.clientY !== undefined) { startX = e.clientX; startY = e.clientY;} else { startX = null; startY = null; } element.classList.add('pressing'); timer = setTimeout(() => { if (timer) callback(); clearTimeout(timer); timer = null; element.classList.remove('pressing'); }, duration); }; const cancel = () => { clearTimeout(timer); timer = null; element.classList.remove('pressing'); }; const move = (e) => { if (timer && startX !== null && startY !== null) { let currentX, currentY; if (e.touches && e.touches.length > 0) { currentX = e.touches[0].clientX; currentY = e.touches[0].clientY; } else if (e.clientX !== undefined && e.clientY !== undefined) { currentX = e.clientX; currentY = e.clientY;} else return; const dX = Math.abs(currentX - startX); const dY = Math.abs(currentY - startY); if (dX > tolerance || dY > tolerance) cancel(); } }; element.addEventListener('mousedown', start); element.addEventListener('mouseup', cancel); element.addEventListener('mouseleave', cancel); element.addEventListener('mousemove', move); element.addEventListener('touchstart', start, { passive: false }); element.addEventListener('touchend', cancel); element.addEventListener('touchcancel', cancel); element.addEventListener('touchmove', move, { passive: false }); }; applyLongPress(arrivedBtn, handleArriveLongPress); applyLongPress(departBtn, handleDepartLongPress); applyLongPress(extendBtn, handleExtendLongPress); applyLongPress(iamSafeBtn, handleSafeLongPress); }
     function init() {
-        pages = { main: document.getElementById('mainPage'), locked: document.getElementById('lockedPage'), settings: document.getElementById('settingsPage') };
-        modals = { backdrop: document.getElementById('modalBackdrop'), location: document.getElementById('locationModal'), info: document.getElementById('infoModal'), pin: document.getElementById('pinModal'), alert: document.getElementById('alertModal'), checkin: document.getElementById('checkinModal') };
-        locationList = document.getElementById('locationList'); arrivedBtn = document.getElementById('arrivedBtn'); durationSlider = document.getElementById('durationSlider'); durationDisplay = document.getElementById('durationDisplay'); infoBtn = document.getElementById('infoBtn'); settingsBtn = document.getElementById('settingsBtn'); closeSettingsBtn = document.getElementById('closeSettingsBtn'); addLocationBtn = document.getElementById('addLocationBtn'); saveSettingsBtn = document.getElementById('saveSettingsBtn'); closeInfoModalBtn = document.getElementById('closeInfoModalBtn'); cancelLocationBtn = document.getElementById('cancelLocationBtn'); saveLocationBtn = document.getElementById('saveLocationBtn'); deleteLocationBtn = document.getElementById('deleteLocationBtn'); useCurrentLocationBtn = document.getElementById('useCurrentLocationBtn'); panicBtn = document.getElementById('panicBtn'); iamSafeBtn = document.getElementById('iamSafeBtn'); departBtn = document.getElementById('departBtn'); extendBtn = document.getElementById('extendBtn'); alertModalOkBtn = document.getElementById('alertModalOkBtn'); checkinOkBtn = document.getElementById('checkinOkBtn'); pinInput = document.getElementById('pinInput'); confirmPinBtn = document.getElementById('confirmPinBtn'); cancelPinBtn = document.getElementById('cancelPinBtn');
-        
+        // Assign elements (ensure all IDs are correct in HTML)
+      pages = { main: document.getElementById('mainPage'), locked: document.getElementById('lockedPage'), settings: document.getElementById('settingsPage') }; modals = { backdrop: document.getElementById('modalBackdrop'), location: document.getElementById('locationModal'), info: document.getElementById('infoModal'), pin: document.getElementById('pinModal'), alert: document.getElementById('alertModal'), checkin: document.getElementById('checkinModal') }; locationList = document.getElementById('locationList'); arrivedBtn = document.getElementById('arrivedBtn'); durationSlider = document.getElementById('durationSlider'); durationDisplay = document.getElementById('durationDisplay'); infoBtn = document.getElementById('infoBtn'); settingsBtn = document.getElementById('settingsBtn'); closeSettingsBtn = document.getElementById('closeSettingsBtn'); addLocationBtn = document.getElementById('addLocationBtn'); saveSettingsBtn = document.getElementById('saveSettingsBtn'); closeInfoModalBtn = document.getElementById('closeInfoModalBtn'); cancelLocationBtn = document.getElementById('cancelLocationBtn'); saveLocationBtn = document.getElementById('saveLocationBtn'); deleteLocationBtn = document.getElementById('deleteLocationBtn'); useCurrentLocationBtn = document.getElementById('useCurrentLocationBtn'); panicBtn = document.getElementById('panicBtn'); iamSafeBtn = document.getElementById('iamSafeBtn'); departBtn = document.getElementById('departBtn'); extendBtn = document.getElementById('extendBtn'); alertModalOkBtn = document.getElementById('alertModalOkBtn'); checkinOkBtn = document.getElementById('checkinOkBtn'); pinInput = document.getElementById('pinInput'); confirmPinBtn = document.getElementById('confirmPinBtn'); cancelPinBtn = document.getElementById('cancelPinBtn'); // Ensure these are correctly assigned checkinCountdown = document.getElementById('checkinCountdown'); countdownTimer = document.getElementById('countdownTimer'); lockedAnticipatedTime = document.getElementById('lockedAnticipatedTime'); alertActiveContainer = document.getElementById('alertActiveContainer'); normalButtonsContainer = document.getElementById('normalButtonsContainer'); locationModalTitle=document.getElementById('locationModalTitle'); locationName=document.getElementById('locationName'); locationAddress=document.getElementById('locationAddress'); googleSheetUrl=document.getElementById('googleSheetUrl'); // Assign googleSheetUrl input
+
+        // Service Worker
         if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').then(reg => console.log('SW registered.', reg)).catch(err => console.log('SW reg failed:', err)); }); } 
         loadState(); 
         if (state.activeVisit) { enterLockedScreen(); } else { navigate('main'); renderLocations(); updateArrivedButtonState(); } 
         initEventListeners(); 
-        Object.keys(pages).forEach(key => { if (pages[key] && !pages[key].classList.contains('active')) { pages[key].classList.add('hidden'); } }); // Ensure inactive pages hidden on load
+        Object.keys(pages).forEach(key => { if (pages[key] && !pages[key].classList.contains('active')) { pages[key].classList.add('hidden'); } });
     }
-        window.addEventListener('load', init);
+    document.addEventListener('DOMContentLoaded', init); // Use DOMContentLoaded instead of load
     <\/script>
 <\/body>
 <\/html>
@@ -840,208 +678,107 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
 <!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LWS Monitor</title>
-    <script src="https://cdn.tailwindcss.com"><\/script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"><\/script>
-    <style>
-body { font-family: 'Inter', sans-serif; }
-@keyframes flash-red { 0%, 100% { background-color: #991b1b; } 50% { background-color: #ef4444; } }
-@keyframes flash-purple { 0%, 100% { background-color: #5b21b6; } 50% { background-color: #a78bfa; } }
-.flashing-alert { animation: flash-red 1s infinite; } .flashing-duress { animation: flash-purple 1s infinite; }
-<\/style>
+    <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>LWS Monitor</title> <script src="https://cdn.tailwindcss.com"><\/script> <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"> <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"><\/script> <style> body { font-family: 'Inter', sans-serif; } @keyframes flash-red { 0%, 100% { background-color: #991b1b; } 50% { background-color: #ef4444; } } @keyframes flash-purple { 0%, 100% { background-color: #5b21b6; } 50% { background-color: #a78bfa; } } .flashing-alert { animation: flash-red 1s infinite; } .flashing-duress { animation: flash-purple 1s infinite; } <\/style>
 <\/head>
 <body class="bg-gray-800 text-white h-full overflow-hidden">
 <div id="setupPage" class="h-full flex items-center justify-center p-4 bg-gray-900">
-    <div class="w-full max-w-md text-center">
-        <h1 class="text-3xl font-bold text-blue-400 mb-4">Monitoring Dashboard Setup<\/h1>
-        <p class="text-gray-400 mb-6">Enter the Google Sheet Web App URL and the Secret Key to begin monitoring. (These should be pre-filled if generated correctly)<\/p>
-        <div class="space-y-4">
-            <div><label for="googleSheetUrl" class="sr-only">Google Sheet Web App URL<\/label><input type="url" id="googleSheetUrl" class="block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Paste Web App URL here"><\/div>
-            <div><label for="secretKey" class="sr-only">Secret Key<\/label><input type="password" id="secretKey" class="block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Enter Secret Key"><\/div>
-            <button id="saveUrlBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Start/Restart Monitoring<\/button>
-        <\/div>
-    <\/div>
-<\/div>
-<div id="dashboardPage" class="h-full flex-col hidden">
-    <header class="flex-shrink-0 bg-gray-900 shadow-lg z-10" style="-webkit-app-region: drag">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                <h1 class="text-2xl font-bold text-blue-400">Lone Worker Monitor<\/h1>
-                <div class="flex items-center space-x-2">
-                    <span id="statusIndicator" class="h-3 w-3 rounded-full bg-gray-500" title="Connection Status"><\/span>
-                    <span id="lastUpdated" class="text-sm text-gray-500"><\/span>
-                    <button id="resetUrlBtn" title="Reset Connection Settings" class="p-2 rounded-full hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.82l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2.82l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><\/button>
-                <\/div>
-            <\/div>
-        <\/div>
-    <\/header>
-    <main class="flex-1 overflow-y-auto p-4">
-        <div id="sizeWarningBanner" class="hidden bg-yellow-600 text-white p-3 rounded-lg mb-4 flex justify-between items-center">
-            <p><strong>Warning:<\/strong> The database exceeds 2,500 rows. Please advise the administrator to trim the database for optimal performance.<\/p>
-            <button id="closeWarningBtn" class="ml-4 text-2xl font-bold leading-none align-middle hover:text-yellow-200">×<\/button>
-        <\/div>
-        <div id="workerList" class="space-y-3">
-                    <\/div>
-    <\/main>
-<\/div>
-<div id="alertOverlay" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center flashing-alert text-white p-8 text-center">
-    <h2 class="text-6xl md:text-8xl font-bold animate-pulse">ALERT!<\/h2>
-    <div id="alertDetails" class="mt-8 text-xl md:text-2xl bg-black bg-opacity-30 p-6 rounded-lg">
-            <\/div>
-    <button id="acknowledgeBtn" class="mt-12 bg-white text-red-700 font-bold py-3 px-6 md:py-4 md:px-8 rounded-lg text-2xl md:text-3xl shadow-2xl">Acknowledge Alert<\/button>
-<\/div>
-<div id="modalBackdrop" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-40">
-    <div id="alertModal" class="hidden bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
-        <h2 id="alertModalTitle" class="text-xl font-bold mb-2">Alert<\/h2>
-        <p id="alertModalMessage" class="text-gray-300 mb-6"><\/p>
-        <button id="alertModalOkBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-24">OK<\/button>
-    <\/div>
-    <div id="resolveModal" class="hidden bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6">
-        <h2 class="text-xl font-bold mb-4 text-yellow-400">Resolve Alert<\/h2>
-        <p class="text-gray-300 mb-4">You are about to manually resolve the alert for <strong id="resolveWorkerName" class="text-white"><\/strong>. This action will clear their alert status and remove them from the dashboard.<\/p>
-        <p class="text-gray-400 mb-2 text-sm">To confirm, please type the worker's name:<\/p>
-        <input type="text" id="resolveConfirmInput" class="block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-yellow-500 focus:border-yellow-500" autocomplete="off">
-        <div class="mt-6 flex justify-end space-x-3">
-            <button id="cancelResolveBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel<\/button>
-            <button id="confirmResolveBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg" data-name="" data-arrival="">Confirm Resolve<\/button>
+    <div class="w-full max-w-md text-center">
+        <h1 class="text-3xl font-bold text-blue-400 mb-4">Monitoring Dashboard Setup<\/h1>
+        <p class="text-gray-400 mb-6">Enter the Google Sheet Web App URL and the Secret Key to begin monitoring. (These should be pre-filled if generated correctly)<\/p>
+        <div class="space-y-4">
+            <div><label for="googleSheetUrl" class="sr-only">Google Sheet Web App URL<\/label><input type="url" id="googleSheetUrl" class="block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Paste Web App URL here"><\/div>
+            <div><label for="secretKey" class="sr-only">Secret Key<\/label><input type="password" id="secretKey" class="block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Enter Secret Key"><\/div>
+            <button id="saveUrlBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Start/Restart Monitoring<\/button>
         <\/div>
     <\/div>
 <\/div>
+<div id="dashboardPage" class="h-full hidden flex-col"> <header class="flex-shrink-0 bg-gray-900 shadow-lg z-10" style="-webkit-app-region: drag">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <h1 class="text-2xl font-bold text-blue-400">Lone Worker Monitor<\/h1>
+                <div class="flex items-center space-x-2">
+                    <span id="statusIndicator" class="h-3 w-3 rounded-full bg-gray-500" title="Connection Status"><\/span> <span id="lastUpdated" class="text-sm text-gray-500"><\/span> <button id="resetUrlBtn" title="Reset Connection Settings" class="p-2 rounded-full hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.82l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2.82l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><\/button>
+                <\/div>
+            <\/div>
+        <\/div>
+    <\/header>
+    <main class="flex-1 overflow-y-auto p-4">
+        <div id="sizeWarningBanner" class="hidden bg-yellow-600 text-white p-3 rounded-lg mb-4 flex justify-between items-center">
+            <p><strong>Warning:<\/strong> Database exceeds 2,500 rows. Consider advising admin to archive old data.<\/p> <button id="closeWarningBtn" class="ml-4 text-2xl font-bold leading-none align-middle hover:text-yellow-200">×<\/button>
+        <\/div>
+        <div id="workerList" class="space-y-3"> <\/div>
+    <\/main>
+<\/div>
+<div id="alertOverlay" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center flashing-alert text-white p-8 text-center">
+    <h2 class="text-6xl md:text-8xl font-bold animate-pulse">ALERT!<\/h2>
+    <div id="alertDetails" class="mt-8 text-xl md:text-2xl bg-black bg-opacity-30 p-6 rounded-lg"> <\/div> <button id="acknowledgeBtn" class="mt-12 bg-white text-red-700 font-bold py-3 px-6 md:py-4 md:px-8 rounded-lg text-2xl md:text-3xl shadow-2xl">Acknowledge Alert<\/button>
+<\/div>
+<div id="modalBackdrop" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-40">
+    <div id="alertModal" class="hidden bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
+        <h2 id="alertModalTitle" class="text-xl font-bold mb-2">Alert<\/h2> <p id="alertModalMessage" class="text-gray-300 mb-6"><\/p> <button id="alertModalOkBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-24">OK<\/button>
+    <\/div>
+    <div id="resolveModal" class="hidden bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6">
+        <h2 class="text-xl font-bold mb-4 text-yellow-400">Resolve Alert<\/h2>
+        <p class="text-gray-300 mb-4">Manually resolve alert for <strong id="resolveWorkerName" class="text-white"><\/strong>? This clears their status.<\/p>
+        <p class="text-gray-400 mb-2 text-sm">To confirm, type worker's name:<\/p> <input type="text" id="resolveConfirmInput" class="block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-yellow-500 focus:border-yellow-500" autocomplete="off">
+        <div class="mt-6 flex justify-end space-x-3"> <button id="cancelResolveBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel<\/button> <button id="confirmResolveBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg" data-name="" data-arrival="">Confirm Resolve<\/button> <\/div>
+    <\/div>
+<\/div>
 <script>
-    let setupPage, dashboardPage, googleSheetUrlInput, saveUrlBtn, resetUrlBtn, workerList, statusIndicator, lastUpdatedEl, alertOverlay, alertDetails, acknowledgeBtn, modalBackdrop, alertModal, alertModalTitle, alertModalMessage, alertModalOkBtn, secretKeyInput, sizeWarningBanner, closeWarningBtn, resolveModal, resolveWorkerName, resolveConfirmInput, cancelResolveBtn, confirmResolveBtn;
-    let sheetUrl = ''; let secretKey = ''; let pollingInterval; let lastKnownStatuses = {}; let alarm; let isFirstLoad = true;
+    let setupPage, dashboardPage, googleSheetUrlInput, saveUrlBtn, resetUrlBtn, workerList, statusIndicator, lastUpdatedEl, alertOverlay, alertDetails, acknowledgeBtn, modalBackdrop, alertModal, alertModalTitle, alertModalMessage, alertModalOkBtn, secretKeyInput, sizeWarningBanner, closeWarningBtn, resolveModal, resolveWorkerName, resolveConfirmInput, cancelResolveBtn, confirmResolveBtn;
+    let sheetUrl = ''; let secretKey = ''; let pollingInterval; let lastKnownStatuses = {}; let alarm; let isFirstLoad = true;
 
-    function navigate(page) {
-      const activeClass = 'flex'; // Use flex for visibility
-      const hiddenClass = 'hidden';
-        if (page === 'setup') {
-            setupPage.classList.remove(hiddenClass); setupPage.classList.add(activeClass);
-            dashboardPage.classList.add(hiddenClass); dashboardPage.classList.remove(activeClass);
-          // Pre-fill fields if values exist
-          googleSheetUrlInput.value = localStorage.getItem('lwsMonitorUrl') || '';
-          secretKeyInput.value = localStorage.getItem('lwsMonitorKey') || '';
-        } else if (page === 'dashboard') {
-            setupPage.classList.add(hiddenClass); setupPage.classList.remove(activeClass);
-            dashboardPage.classList.remove(hiddenClass); dashboardPage.classList.add('flex', 'flex-col'); // Ensure flex-col is applied
-        }
-    }
-    function showModal(modal, onShow) {
-        modalBackdrop.classList.remove('hidden'); modalBackdrop.classList.add('flex');
-        const modalsToHide = [alertModal, resolveModal];
-        modalsToHide.forEach(m => m && m.classList.add('hidden'));
-        if(modal) { modal.classList.remove('hidden'); }
-        if(onShow) onShow();
+    function navigate(page) {
+        const activeClass = 'flex'; const hiddenClass = 'hidden';
+        if (page === 'setup') {
+            setupPage.classList.remove(hiddenClass); setupPage.classList.add(activeClass);
+            dashboardPage.classList.add(hiddenClass); dashboardPage.classList.remove('flex', 'flex-col'); // Explicitly remove flex
+            googleSheetUrlInput.value = localStorage.getItem('lwsMonitorUrl') || '';
+            secretKeyInput.value = localStorage.getItem('lwsMonitorKey') || '';
+        } else if (page === 'dashboard') {
+            setupPage.classList.add(hiddenClass); setupPage.classList.remove(activeClass);
+            dashboardPage.classList.remove(hiddenClass); dashboardPage.classList.add('flex', 'flex-col'); // Apply flex *and* flex-col
+        }
     }
-    function hideModals() {
-        modalBackdrop.classList.add('hidden'); modalBackdrop.classList.remove('flex');
-        const modalsToHide = [alertModal, resolveModal];
-        modalsToHide.forEach(m => m && m.classList.add('hidden'));
+    function showModal(modal, onShow) { modalBackdrop.classList.remove('hidden'); modalBackdrop.classList.add('flex'); const modalsToHide = [alertModal, resolveModal]; modalsToHide.forEach(m => m && m.classList.add('hidden')); if(modal) { modal.classList.remove('hidden'); } if(onShow) onShow(); }
+    function hideModals() { modalBackdrop.classList.add('hidden'); modalBackdrop.classList.remove('flex'); const modalsToHide = [alertModal, resolveModal]; modalsToHide.forEach(m => m && m.classList.add('hidden')); }
+    function showAlert(title, message) { if (!alertModalTitle) return; alertModalTitle.textContent = title; alertModalMessage.textContent = message; showModal(alertModal); }
+    async function initAudio() { if (alarm || (Tone.context && Tone.context.state === 'running') ) return; try { await Tone.start(); alarm = new Tone.Synth({ oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.1 } }).toDestination(); console.log("Audio started."); } catch(e) { console.error("Audio start failed:", e); } }
+    function playUpdateSound() { initAudio().then(() => { if (!alarm) return; const now = Tone.now(); alarm.triggerAttackRelease("A4", "16n", now); alarm.triggerAttackRelease("C5", "16n", now + 0.2); }); }
+    function playAlarm(worker) { initAudio().then(() => { if (alarm) { if (window.electron) window.electron.sendAlert(); if (!alarm.loop) { alarm.loop = new Tone.Loop(time => { alarm.triggerAttackRelease("C5", "8n", time); }, "4n").start(0); } if(Tone.Transport.state !== 'started') Tone.Transport.start(); } else { console.warn("Audio failed, visual only.");} alertDetails.innerHTML = \`<p class="font-bold text-4xl">\${worker['Worker Name']}<\/p><p>at \${worker['Location Name']}<\/p><p class="mt-4 text-red-300 font-bold">\${(worker['Alarm Status'] || 'Unknown').replace(/_/g, ' ')}<\/p>\`; alertOverlay.classList.remove('hidden', 'flashing-duress', 'flashing-alert'); if (worker['Alarm Status'] === 'DURESS_CODE_ACTIVATED') alertOverlay.classList.add('flashing-duress'); else alertOverlay.classList.add('flashing-alert'); acknowledgeBtn.dataset.arrivalTime = worker['Arrival Time']; acknowledgeBtn.dataset.workerName = worker['Worker Name']; }); }
+    function stopAlarm() { if (alarm && alarm.loop && Tone.Transport.state === 'started') { Tone.Transport.stop(); Tone.Transport.cancel(); alarm.loop.dispose(); alarm.loop = null; } alertOverlay.classList.add('hidden'); }
+    function fetchData() {
+        if (!sheetUrl || !secretKey) { console.warn("Fetch skipped: URL/Key missing."); return; }
+        statusIndicator.classList.remove('bg-green-500', 'bg-red-500'); statusIndicator.classList.add('bg-yellow-500'); statusIndicator.title = "Fetching...";
+        const script = document.createElement('script'); const callbackName = 'jscb_' + Date.now(); let scriptTimeout;
+        window[callbackName] = function(data) {
+            clearTimeout(scriptTimeout); delete window[callbackName]; try { document.body.removeChild(script); } catch(e) {}
+            if (data.status === 'error' && data.message.includes('Access Denied')) {
+                console.error("Access Denied."); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Access Denied"; lastUpdatedEl.textContent = 'Denied'; if (isFirstLoad) showAlert("Access Denied", "Incorrect Secret Key. Click settings (⚙️) to reset."); clearInterval(pollingInterval); isFirstLoad = false; navigate('setup');
+            } else if (Array.isArray(data)) {
+                statusIndicator.classList.remove('bg-yellow-500', 'bg-red-500'); statusIndicator.classList.add('bg-green-500'); statusIndicator.title = "Connected"; lastUpdatedEl.textContent = 'Upd: ' + new Date().toLocaleTimeString(); sizeWarningBanner.classList.toggle('hidden', data.length < 2500); processData(data); isFirstLoad = false;
+            } else {
+                console.error("Bad data:", data); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Data Error"; lastUpdatedEl.textContent = 'Error'; if (isFirstLoad) showAlert("Data Error", "Unexpected data. Check Script logs."); isFirstLoad = false;
+            }
+        };
+        script.src = sheetUrl + '?callback=' + callbackName + '&token=' + encodeURIComponent(secretKey) + '&t=' + Date.now();
+        script.onerror = () => { clearTimeout(scriptTimeout); delete window[callbackName]; try { document.body.removeChild(script); } catch(e) {} console.error("Fetch error."); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Connection Failed"; lastUpdatedEl.textContent = 'Failed'; if (isFirstLoad) { showAlert( "Connection Failed", "Check URL, script deployment, & network."); isFirstLoad = false; navigate('setup'); } };
+        document.body.appendChild(script); scriptTimeout = setTimeout(() => { if (window[callbackName]) { console.error("Fetch timeout."); script.onerror(); } }, 20000);
     }
-    function showAlert(title, message) { 
-        if (!alertModalTitle) { console.error("showAlert called before elements were initialized."); return; }
-        alertModalTitle.textContent = title; alertModalMessage.textContent = message; showModal(alertModal);
-    }
-    async function initAudio() { /* ... (Audio init code remains the same) ... */ if (alarm || (Tone.context && Tone.context.state === 'running') ) return; try { await Tone.start(); alarm = new Tone.Synth({ oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.1 } }).toDestination(); console.log("Audio context for alarm started."); } catch(e) { console.error("Could not start audio context:", e); } }
-    function playUpdateSound() { /* ... (Audio play code remains the same) ... */ initAudio().then(() => { if (!alarm) return; const now = Tone.now(); alarm.triggerAttackRelease("A4", "16n", now); alarm.triggerAttackRelease("C5", "16n", now + 0.2); }); }
-    function playAlarm(worker) { /* ... (Audio play code remains the same) ... */ initAudio().then(() => { if (!alarm) { console.warn("Audio context not available, showing visual alert only."); } else { if (window.electron) window.electron.sendAlert(); if (!alarm.loop) { alarm.loop = new Tone.Loop(time => { alarm.triggerAttackRelease("C5", "8n", time); }, "4n").start(0); } if(Tone.Transport.state !== 'started') Tone.Transport.start(); } alertDetails.innerHTML = '<p class="font-bold text-4xl">' + worker['Worker Name'] + '<\/p><p>at ' + worker['Location Name'] + '<\/p><p class="mt-4 text-red-300 font-bold">' + (worker['Alarm Status'] ? worker['Alarm Status'].replace(/_/g, ' ') : 'Unknown Status') + '<\/p>'; alertOverlay.classList.remove('hidden', 'flashing-duress', 'flashing-alert'); if (worker['Alarm Status'] === 'DURESS_CODE_ACTIVATED') { alertOverlay.classList.add('flashing-duress'); } else { alertOverlay.classList.add('flashing-alert'); } acknowledgeBtn.dataset.arrivalTime = worker['Arrival Time']; acknowledgeBtn.dataset.workerName = worker['Worker Name']; }); }
-    function stopAlarm() { /* ... (Audio stop code remains the same) ... */ if (alarm && alarm.loop && Tone.Transport.state === 'started') { Tone.Transport.stop(); Tone.Transport.cancel(); alarm.loop.dispose(); alarm.loop = null; } alertOverlay.classList.add('hidden'); }
-    function fetchData() {
-        if (!sheetUrl || !secretKey) { console.warn("fetchData skipped: URL or Key missing."); return; }
-        statusIndicator.classList.remove('bg-green-500', 'bg-red-500'); statusIndicator.classList.add('bg-yellow-500'); statusIndicator.title = "Fetching data...";
-        const script = document.createElement('script'); const callbackName = 'jsonp_callback_' + Date.now(); let scriptTimeout;
-        window[callbackName] = function(data) {
-          clearTimeout(scriptTimeout); delete window[callbackName]; try { document.body.removeChild(script); } catch(e) {}
-            if (data.status === 'error' && data.message.includes('Access Denied')) {
-                console.error("Access Denied."); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Access Denied"; lastUpdatedEl.textContent = 'Access Denied'; if (isFirstLoad) showAlert("Access Denied", "The Secret Key stored is incorrect. Please click the settings icon (⚙️) to reset."); clearInterval(pollingInterval); isFirstLoad = false; navigate('setup'); /* Force back to setup */
-            } else if (Array.isArray(data)) {
-                statusIndicator.classList.remove('bg-yellow-500', 'bg-red-500'); statusIndicator.classList.add('bg-green-500'); statusIndicator.title = "Connected"; lastUpdatedEl.textContent = 'Updated: ' + new Date().toLocaleTimeString(); sizeWarningBanner.classList.toggle('hidden', data.length < 2500); processData(data); isFirstLoad = false; // Mark first successful load
-            } else {
-                console.error("Received non-array data:", data); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Data Error"; lastUpdatedEl.textContent = 'Data error'; if (isFirstLoad) showAlert("Data Error", "Received unexpected data. Check Apps Script deployment and logs."); isFirstLoad = false;
-            }
-        };
-        script.src = sheetUrl + '?callback=' + callbackName + '&token=' + encodeURIComponent(secretKey) + '&t=' + Date.now();
-        script.onerror = () => {
-          clearTimeout(scriptTimeout); delete window[callbackName]; try { document.body.removeChild(script); } catch(e) {}
-            console.error("Fetch error: JSONP request failed."); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Connection Failed"; lastUpdatedEl.textContent = 'Update failed'; if (isFirstLoad) { showAlert( "Connection Failed", "Could not fetch data. Check URL, script deployment ('Anyone' access), and network connection."); isFirstLoad = false; navigate('setup'); /* Force back to setup */ }
-        };
-        document.body.appendChild(script);
-       scriptTimeout = setTimeout(() => { if (window[callbackName]) { console.error("Fetch timeout."); script.onerror(); /* Trigger error handling */ } }, 20000); // 20 second timeout
-    }
-    function processData(data) { /* ... (Remains the same as previous version) ... */ const activeStatuses = ["ON SITE", "ALERT SENT", "MISSED_CHECKIN", "EMAIL_1_SENT", "EMAIL_2_SENT", "EMAIL_3_SENT", "EMERGENCY - PANIC BUTTON", "DURESS_CODE_ACTIVATED", "ESCALATION_SENT"]; const activeWorkers = data.filter(worker => activeStatuses.includes(worker['Alarm Status'])); const statusPriority = { "DURESS_CODE_ACTIVATED": 1, "EMERGENCY - PANIC BUTTON": 2, "ESCALATION_SENT": 3, "MISSED_CHECKIN": 4, "EMAIL_3_SENT": 5, "EMAIL_2_SENT": 6, "EMAIL_1_SENT": 7, "ALERT SENT": 8, "ON SITE": 9 }; activeWorkers.sort((a,b) => (statusPriority[a['Alarm Status']] || 99) - (statusPriority[b['Alarm Status']] || 99) || (a['Worker Name'] || '').localeCompare(b['Worker Name'] || '')); renderWorkers(activeWorkers); checkForNewAlerts(activeWorkers); }
-    function renderWorkers(workers) { /* ... (Remains the same as previous version) ... */ workerList.innerHTML = ''; if (workers.length === 0) { workerList.innerHTML = '<div class="text-center text-gray-500 mt-10"><p class="text-xl">No active workers found.<\/p><p>The dashboard is polling for updates.<\/p><\/div>'; return; } workers.forEach(worker => { let bgColor = 'bg-gray-700', textColor = 'text-gray-300', borderColor = 'border-transparent', flashClass = ''; switch(worker['Alarm Status']) { case 'DURESS_CODE_ACTIVATED': bgColor = 'bg-purple-800'; textColor = 'text-white'; borderColor = 'border-purple-400'; flashClass = 'flashing-duress'; break; case 'EMERGENCY - PANIC BUTTON': bgColor = 'bg-red-700'; textColor = 'text-white'; borderColor = 'border-red-400'; flashClass = 'flashing-alert'; break; case 'ESCALATION_SENT': case 'EMAIL_3_SENT': case 'EMAIL_2_SENT': case 'EMAIL_1_SENT': case 'ALERT SENT': case 'MISSED_CHECKIN': bgColor = 'bg-yellow-700'; textColor = 'text-white'; borderColor = 'border-yellow-400'; break; } let anticipatedTimeStr = 'N/A'; try { const anticipatedDate = new Date(worker['Anticipated Departure Time']); if (!isNaN(anticipatedDate)) { anticipatedTimeStr = anticipatedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } } catch (e) { console.error("Error formatting date:", worker['Anticipated Departure Time'], e); } let locationLinkHtml = ''; let contactDetailsHtml = ''; let resolveButtonHtml = ''; const isAlertStatus = worker['Alarm Status'] !== 'ON SITE'; if (isAlertStatus) { let linkUrl = '#'; let linkTitle = 'Location not available'; const gpsCoords = worker['Last Known GPS']; const address = worker['Location Address']; if (gpsCoords && gpsCoords.includes(',')) { linkUrl = \`https://www.google.com/maps?q=\${gpsCoords}\`; linkTitle = 'View last known GPS location'; } else if (address) { linkUrl = \`https://www.google.com/maps?q=\${encodeURIComponent(address)}\`; linkTitle = 'View initial location address'; } if(linkUrl !== '#') { locationLinkHtml = \`<a href="\${linkUrl}" target="_blank" title="\${linkTitle}" class="mt-1 inline-flex items-center text-sm text-blue-300 hover:text-blue-200"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>View Location</a>\`; } contactDetailsHtml = \`<div class="mt-3 pt-2 border-t border-white/20 text-xs space-y-1"><p>Worker: <a href="tel:\${worker['Worker Phone Number']}" class="text-blue-300 hover:text-blue-200">\${worker['Worker Phone Number'] || 'N/A'}</a></p><p>Contact: \${worker['Emergency Contact Name'] || 'N/A'} - <a href="tel:\${worker['Emergency Contact Number']}" class="text-blue-300 hover:text-blue-200">\${worker['Emergency Contact Number'] || 'N/A'}</a></p></div>\`; resolveButtonHtml = \`<button class="resolve-alert-btn mt-3 w-full bg-green-700 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm" data-name="\${worker['Worker Name']}" data-arrival="\${worker['Arrival Time']}">Manually Resolve Alert</button>\`; } let lowBatteryIcon = ''; if (worker.Notes && worker.Notes.includes('LOW BATTERY')) { lowBatteryIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block text-red-400 ml-2 animate-pulse" title="Low Battery Warning Received"><path d="M11 7h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><path d="M19 12h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M4 12H2.5A1.5 1.5 0 0 0 1 13.5v1A1.5 1.5 0 0 0 2.5 16H4"/></svg>'; } const card = document.createElement('div'); card.className = \`p-4 rounded-lg shadow-md \${bgColor} \${textColor} border-2 \${borderColor} \${flashClass}\`; card.innerHTML = \`<div class="flex justify-between items-start"><div class="flex-1 min-w-0"><p class="font-bold text-xl truncate">\${worker['Worker Name'] || 'Unknown Worker'}\${lowBatteryIcon}</p><p class="text-sm truncate">\${worker['Location Name'] || 'Unknown Location'}</p>\${locationLinkHtml}</div><div class="text-right flex-shrink-0 ml-4"><p class="font-semibold text-lg">\${(worker['Alarm Status'] || 'Unknown').replace(/_/g, ' ')}</p><p class="text-sm">Due: \${anticipatedTimeStr}</p></div></div>\${contactDetailsHtml}\${resolveButtonHtml}\`; workerList.appendChild(card); }); }
-    function checkForNewAlerts(workers) { /* ... (Remains the same as previous version) ... */ const newStatuses = {}; const criticalAlerts = ['ALERT SENT', 'EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN']; const updateAlerts = ['EMAIL_1_SENT', 'EMAIL_2_SENT', 'EMAIL_3_SENT', 'ESCALATION_SENT']; workers.forEach(worker => { const key = worker['Worker Name'] + '-' + worker['Arrival Time']; const oldStatus = lastKnownStatuses[key]; const newStatus = worker['Alarm Status']; newStatuses[key] = newStatus; if (newStatus !== oldStatus) { if (criticalAlerts.includes(newStatus) && !criticalAlerts.includes(oldStatus)) { console.log("NEW CRITICAL ALERT:", worker); playAlarm(worker); } else if (updateAlerts.includes(newStatus) && !updateAlerts.includes(oldStatus)) { console.log("ALERT STATUS UPDATE:", worker); playUpdateSound(); } } }); lastKnownStatuses = newStatuses; }
-    function acknowledgeAlert() { /* ... (Remains the same - only stops alarm and sends note) ... */ stopAlarm(); const arrivalTime = acknowledgeBtn.dataset.arrivalTime; const workerName = acknowledgeBtn.dataset.workerName; const data = { "Arrival Time": arrivalTime, "Worker Name": workerName, Notes: 'Alert acknowledged by monitor at ' + new Date().toISOString() }; const formData = new FormData(); for (const key in data) { formData.append(key, data[key]); } fetch(sheetUrl, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(formData) }).then(() => console.log("Acknowledgement note sent.")).catch(err => console.error("Failed to send ack note:", err)); }
-    function sendResolveAlert(workerName, arrivalTime) { /* ... (Remains the same as previous version) ... */ const data = { "Arrival Time": arrivalTime, "Worker Name": workerName, "Alarm Status": "MONITOR_CLEARED_ALERT", "Notes": 'Alert manually resolved by monitor at ' + new Date().toISOString() }; const formData = new FormData(); for (const key in data) { formData.append(key, data[key]); } fetch(sheetUrl, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(formData) }).then(() => { console.log("Resolve alert sent."); hideModals(); fetchData(); }).catch(err => { console.error("Failed to send resolve alert:", err); showAlert("Error", "Could not send resolve alert. Check connection."); }); }
-    function initEventListeners() {
-        document.body.addEventListener('pointerdown', initAudio, { once: true });
-        // Button to save/start monitoring from setup page
-        saveUrlBtn.addEventListener('click', () => { 
-            const url = googleSheetUrlInput.value.trim(); 
-            const key = secretKeyInput.value.trim();
-            if (url && key) { 
-                localStorage.setItem('lwsMonitorUrl', url); 
-                localStorage.setItem('lwsMonitorKey', key);
-                sheetUrl = url; secretKey = key; // Update runtime variables
-                navigate('dashboard'); 
-              stopAlarm(); lastKnownStatuses = {}; isFirstLoad = true; // Reset state for new connection
-                fetchData(); 
-              if (pollingInterval) clearInterval(pollingInterval);
-                pollingInterval = setInterval(fetchData, 15000); 
-            } else {
-                showAlert("Missing Info", "Please provide both the Web App URL and the Secret Key.");
-            }
-        });
-        // Button to go back to setup page to reset URL/Key
-        resetUrlBtn.addEventListener('click', () => {
-         if (confirm("Are you sure you want to change the connection settings? This will stop monitoring until new settings are saved.")) {
-             if (pollingInterval) clearInterval(pollingInterval);
-             pollingInterval = null;
-             stopAlarm();
-             workerList.innerHTML = ''; // Clear display
-             lastKnownStatuses = {};
-             statusIndicator.classList.remove('bg-green-500', 'bg-yellow-500', 'bg-red-500'); statusIndicator.classList.add('bg-gray-500'); statusIndicator.title = "Disconnected"; lastUpdatedEl.textContent = '';
-             navigate('setup'); // Go to setup page where user can re-enter/save
-         }
-       });
-        acknowledgeBtn.addEventListener('click', acknowledgeAlert);
-        closeWarningBtn.addEventListener('click', () => sizeWarningBanner.classList.add('hidden'));
-        alertModalOkBtn.addEventListener('click', hideModals);
-      // Resolve Modal Listeners (remain the same)
-      workerList.addEventListener('click', (e) => { const resolveBtn = e.target.closest('.resolve-alert-btn'); if (resolveBtn) { const workerName = resolveBtn.dataset.name; const arrivalTime = resolveBtn.dataset.arrival; if (!workerName || !arrivalTime) { console.error("Resolve button missing data attributes."); return; } showModal(resolveModal, () => { resolveWorkerName.textContent = workerName; resolveConfirmInput.value = ''; resolveConfirmInput.placeholder = \`Type '\${workerName}' to confirm\`; confirmResolveBtn.dataset.name = workerName; confirmResolveBtn.dataset.arrival = arrivalTime; resolveConfirmInput.focus(); }); } });
-      cancelResolveBtn.addEventListener('click', hideModals);
-      confirmResolveBtn.addEventListener('click', () => { const expectedName = confirmResolveBtn.dataset.name; const arrivalTime = confirmResolveBtn.dataset.arrival; const typedName = resolveConfirmInput.value; if (typedName.trim().toLowerCase() === expectedName.trim().toLowerCase()) { sendResolveAlert(expectedName, arrivalTime); } else { resolveConfirmInput.classList.add('border-red-500'); resolveConfirmInput.value = ''; setTimeout(() => resolveConfirmInput.classList.remove('border-red-500'), 1500); } });
-      resolveConfirmInput.addEventListener('keypress', function(event) { if (event.key === 'Enter') { event.preventDefault(); confirmResolveBtn.click(); } });
-    }
-    function init() {
-        // Get all DOM elements
-      setupPage = document.getElementById('setupPage'); dashboardPage = document.getElementById('dashboardPage'); googleSheetUrlInput = document.getElementById('googleSheetUrl'); secretKeyInput = document.getElementById('secretKey'); saveUrlBtn = document.getElementById('saveUrlBtn'); resetUrlBtn = document.getElementById('resetUrlBtn'); workerList = document.getElementById('workerList'); statusIndicator = document.getElementById('statusIndicator'); lastUpdatedEl = document.getElementById('lastUpdated'); alertOverlay = document.getElementById('alertOverlay'); alertDetails = document.getElementById('alertDetails'); acknowledgeBtn = document.getElementById('acknowledgeBtn'); modalBackdrop = document.getElementById('modalBackdrop'); alertModal = document.getElementById('alertModal'); alertModalTitle = document.getElementById('alertModalTitle'); alertModalMessage = document.getElementById('alertModalMessage'); alertModalOkBtn = document.getElementById('alertModalOkBtn'); sizeWarningBanner = document.getElementById('sizeWarningBanner'); closeWarningBtn = document.getElementById('closeWarningBtn'); resolveModal = document.getElementById('resolveModal'); resolveWorkerName = document.getElementById('resolveWorkerName'); resolveConfirmInput = document.getElementById('resolveConfirmInput'); cancelResolveBtn = document.getElementById('cancelResolveBtn'); confirmResolveBtn = document.getElementById('confirmResolveBtn');
-
-        // Load saved state (URL and Key)
-        sheetUrl = localStorage.getItem('lwsMonitorUrl');
-        secretKey = localStorage.getItem('lwsMonitorKey');
-
-        initEventListeners();
-
-        // Decide initial page view
-        if (sheetUrl && secretKey) {
-            navigate('dashboard');
-            fetchData(); // Initial fetch
-            if (pollingInterval) clearInterval(pollingInterval); // Clear just in case
-            pollingInterval = setInterval(fetchData, 15000); // Start polling
-        } else {
-            navigate('setup'); // Go to setup if no URL/key saved
-        }
-    }
-    window.addEventListener('load', init);
+    function processData(data) { const active = ["ON SITE", "ALERT SENT", "MISSED_CHECKIN", "EMAIL_1_SENT", "EMAIL_2_SENT", "EMAIL_3_SENT", "EMERGENCY - PANIC BUTTON", "DURESS_CODE_ACTIVATED", "ESCALATION_SENT"]; const workers = data.filter(w => active.includes(w['Alarm Status'])); const prio = { "DURESS_CODE_ACTIVATED": 1, "EMERGENCY - PANIC BUTTON": 2, "ESCALATION_SENT": 3, "MISSED_CHECKIN": 4, "EMAIL_3_SENT": 5, "EMAIL_2_SENT": 6, "EMAIL_1_SENT": 7, "ALERT SENT": 8, "ON SITE": 9 }; workers.sort((a,b) => (prio[a['Alarm Status']] || 99) - (prio[b['Alarm Status']] || 99) || (a['Worker Name'] || '').localeCompare(b['Worker Name'] || '')); renderWorkers(workers); checkForNewAlerts(workers); }
+    function renderWorkers(workers) { workerList.innerHTML = ''; if (workers.length === 0) { workerList.innerHTML = '<div class="text-center text-gray-500 mt-10"><p class="text-xl">No active workers.<\/p><\/div>'; return; } workers.forEach(w => { let bg = 'bg-gray-700', txt = 'text-gray-300', bord = 'border-transparent', flash = ''; switch(w['Alarm Status']) { case 'DURESS_CODE_ACTIVATED': bg = 'bg-purple-800'; txt = 'text-white'; bord = 'border-purple-400'; flash = 'flashing-duress'; break; case 'EMERGENCY - PANIC BUTTON': bg = 'bg-red-700'; txt = 'text-white'; bord = 'border-red-400'; flash = 'flashing-alert'; break; case 'ESCALATION_SENT': case 'EMAIL_3_SENT': case 'EMAIL_2_SENT': case 'EMAIL_1_SENT': case 'ALERT SENT': case 'MISSED_CHECKIN': bg = 'bg-yellow-700'; txt = 'text-white'; bord = 'border-yellow-400'; break; } let timeStr = 'N/A'; try { const dt = new Date(w['Anticipated Departure Time']); if (!isNaN(dt)) timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (e) {} let locLink = ''; let contactInfo = ''; let resolveBtn = ''; const isAlert = w['Alarm Status'] !== 'ON SITE'; if (isAlert) { let url = '#', title = 'No location'; const gps = w['Last Known GPS']; const adr = w['Location Address']; if (gps && gps.includes(',')) { url = \`https://www.google.com/maps?q=\$\${gps}\`; title = 'View GPS'; } else if (adr) { url = \`https://www.google.com/maps?q=\$\${encodeURIComponent(adr)}\`; title = 'View address'; } if(url !== '#') locLink = \`<a href="\${url}" target="_blank" title="\${title}" class="mt-1 inline-flex items-center text-sm text-blue-300 hover:text-blue-200"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>View Location</a>\`; contactInfo = \`<div class="mt-3 pt-2 border-t border-white/20 text-xs space-y-1"><p>W: <a href="tel:\${w['Worker Phone Number']}" class="text-blue-300 hover:text-blue-200">\${w['Worker Phone Number'] || 'N/A'}</a></p><p>EC: \${w['Emergency Contact Name'] || 'N/A'} - <a href="tel:\${w['Emergency Contact Number']}" class="text-blue-300 hover:text-blue-200">\${w['Emergency Contact Number'] || 'N/A'}</a></p></div>\`; resolveBtn = \`<button class="resolve-alert-btn mt-3 w-full bg-green-700 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm" data-name="\${w['Worker Name']}" data-arrival="\${w['Arrival Time']}">Manually Resolve</button>\`; } let batteryIcon = (w.Notes && w.Notes.includes('LOW BATTERY')) ? '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block text-red-400 ml-2 animate-pulse" title="Low Battery"><path d="M11 7h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><path d="M19 12h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M4 12H2.5A1.5 1.5 0 0 0 1 13.5v1A1.5 1.5 0 0 0 2.5 16H4"/></svg>' : ''; const card = document.createElement('div'); card.className = \`p-4 rounded-lg shadow-md \${bg} \${txt} border-2 \${bord} \${flash}\`; card.innerHTML = \`<div class="flex justify-between items-start"><div class="flex-1 min-w-0"><p class="font-bold text-xl truncate">\${w['Worker Name'] || '?'}\${batteryIcon}</p><p class="text-sm truncate">\${w['Location Name'] || '?'}</p>\${locLink}</div><div class="text-right flex-shrink-0 ml-4"><p class="font-semibold text-lg">\${(w['Alarm Status'] || '?').replace(/_/g, ' ')}</p><p class="text-sm">Due: \${timeStr}</p></div></div>\${contactInfo}\${resolveBtn}\`; workerList.appendChild(card); }); }
+    function checkForNewAlerts(workers) { const newStatuses = {}; const critical = ['ALERT SENT', 'EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN']; const updates = ['EMAIL_1_SENT', 'EMAIL_2_SENT', 'EMAIL_3_SENT', 'ESCALATION_SENT']; workers.forEach(w => { const key = w['Worker Name'] + '-' + w['Arrival Time']; const oldS = lastKnownStatuses[key]; const newS = w['Alarm Status']; newStatuses[key] = newS; if (newS !== oldS) { if (critical.includes(newS) && !critical.includes(oldS)) { console.log("NEW ALERT:", w); playAlarm(w); } else if (updates.includes(newS) && !updates.includes(oldS)) { console.log("UPDATE:", w); playUpdateSound(); } } }); lastKnownStatuses = newStatuses; }
+    function acknowledgeAlert() { stopAlarm(); const arrival = acknowledgeBtn.dataset.arrivalTime; const name = acknowledgeBtn.dataset.workerName; const data = { "Arrival Time": arrival, "Worker Name": name, Notes: 'Alert acknowledged by monitor at ' + new Date().toISOString() }; const fd = new FormData(); for (const k in data) fd.append(k, data[k]); fetch(sheetUrl, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(fd) }).then(() => console.log("Ack note sent.")).catch(e => console.error("Ack note failed:", e)); }
+    function sendResolveAlert(name, arrival) { const data = { "Arrival Time": arrival, "Worker Name": name, "Alarm Status": "MONITOR_CLEARED_ALERT", Notes: 'Manually resolved by monitor at ' + new Date().toISOString() }; const fd = new FormData(); for (const k in data) fd.append(k, data[k]); fetch(sheetUrl, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(fd) }).then(() => { console.log("Resolve sent."); hideModals(); fetchData(); }).catch(e => { console.error("Resolve failed:", e); showAlert("Error", "Could not resolve. Check connection."); }); }
+    function initEventListeners() { document.body.addEventListener('pointerdown', initAudio, { once: true }); saveUrlBtn.addEventListener('click', () => { const url = googleSheetUrlInput.value.trim(); const key = secretKeyInput.value.trim(); if (url && key) { localStorage.setItem('lwsMonitorUrl', url); localStorage.setItem('lwsMonitorKey', key); sheetUrl = url; secretKey = key; navigate('dashboard'); stopAlarm(); lastKnownStatuses = {}; isFirstLoad = true; fetchData(); if (pollingInterval) clearInterval(pollingInterval); pollingInterval = setInterval(fetchData, 15000); } else showAlert("Missing Info", "URL and Secret Key required."); }); resetUrlBtn.addEventListener('click', () => { if (confirm("Change connection settings?")) { if (pollingInterval) clearInterval(pollingInterval); pollingInterval = null; stopAlarm(); workerList.innerHTML = ''; lastKnownStatuses = {}; statusIndicator.className = 'h-3 w-3 rounded-full bg-gray-500'; statusIndicator.title = "Disconnected"; lastUpdatedEl.textContent = ''; navigate('setup'); } }); acknowledgeBtn.addEventListener('click', acknowledgeAlert); closeWarningBtn.addEventListener('click', () => sizeWarningBanner.classList.add('hidden')); alertModalOkBtn.addEventListener('click', hideModals); workerList.addEventListener('click', (e) => { const btn = e.target.closest('.resolve-alert-btn'); if (btn) { const name = btn.dataset.name; const arrival = btn.dataset.arrival; if (!name || !arrival) return; showModal(resolveModal, () => { resolveWorkerName.textContent = name; resolveConfirmInput.value = ''; resolveConfirmInput.placeholder = \`Type '\${name}'\`; confirmResolveBtn.dataset.name = name; confirmResolveBtn.dataset.arrival = arrival; resolveConfirmInput.focus(); }); } }); cancelResolveBtn.addEventListener('click', hideModals); confirmResolveBtn.addEventListener('click', () => { const name = confirmResolveBtn.dataset.name; const arrival = confirmResolveBtn.dataset.arrival; const typed = resolveConfirmInput.value; if (typed.trim().toLowerCase() === name.trim().toLowerCase()) { sendResolveAlert(name, arrival); } else { resolveConfirmInput.classList.add('border-red-500'); resolveConfirmInput.value = ''; setTimeout(() => resolveConfirmInput.classList.remove('border-red-500'), 1500); } }); resolveConfirmInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); confirmResolveBtn.click(); } }); }
+    function init() { setupPage = document.getElementById('setupPage'); dashboardPage = document.getElementById('dashboardPage'); googleSheetUrlInput = document.getElementById('googleSheetUrl'); secretKeyInput = document.getElementById('secretKey'); saveUrlBtn = document.getElementById('saveUrlBtn'); resetUrlBtn = document.getElementById('resetUrlBtn'); workerList = document.getElementById('workerList'); statusIndicator = document.getElementById('statusIndicator'); lastUpdatedEl = document.getElementById('lastUpdated'); alertOverlay = document.getElementById('alertOverlay'); alertDetails = document.getElementById('alertDetails'); acknowledgeBtn = document.getElementById('acknowledgeBtn'); modalBackdrop = document.getElementById('modalBackdrop'); alertModal = document.getElementById('alertModal'); alertModalTitle = document.getElementById('alertModalTitle'); alertModalMessage = document.getElementById('alertModalMessage'); alertModalOkBtn = document.getElementById('alertModalOkBtn'); sizeWarningBanner = document.getElementById('sizeWarningBanner'); closeWarningBtn = document.getElementById('closeWarningBtn'); resolveModal = document.getElementById('resolveModal'); resolveWorkerName = document.getElementById('resolveWorkerName'); resolveConfirmInput = document.getElementById('resolveConfirmInput'); cancelResolveBtn = document.getElementById('cancelResolveBtn'); confirmResolveBtn = document.getElementById('confirmResolveBtn'); sheetUrl = localStorage.getItem('lwsMonitorUrl'); secretKey = localStorage.getItem('lwsMonitorKey'); initEventListeners(); if (sheetUrl && secretKey) { navigate('dashboard'); fetchData(); if (pollingInterval) clearInterval(pollingInterval); pollingInterval = setInterval(fetchData, 15000); } else navigate('setup'); }
+    document.addEventListener('DOMContentLoaded', init); // Use DOMContentLoaded
 <\/script>
 <\/body>
 <\/html>
 `;
 
-            // APPS SCRIPT (FILE 4 - MODIFIED)
+            // APPS SCRIPT (FILE 4 - CORRECTED SYNTAX)
             document.getElementById('apps_script_template-tpl').innerHTML = `
 // ##### --------------------------------------------------- #####
 // ##### Lone Worker Safety System - Google Apps Script Backend #####
@@ -1057,13 +794,13 @@ var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
 // --- WEB APP ENDPOINTS ---
 
 /**
-Handles GET requests. Used by the Monitoring Dashboard to fetch data.
-Responds with JSONP for cross-domain access.
-*/
+ * Handles GET requests. Used by the Monitoring Dashboard to fetch data.
+ * Responds with JSONP for cross-domain access.
+ */
 function doGet(e) {
   var token = e.parameter.token;
   if (token !== SECRET_KEY) {
-    Logger.log("Access Denied in doGet. Provided token: " + token); // Log denied token attempt
+    Logger.log("Access Denied in doGet. Provided token: " + (token ? token.substring(0, 5) + '...' : 'null')); // Log prefix only
     return ContentService
       .createTextOutput(JSON.stringify({ status: "error", message: "Access Denied" }))
       .setMimeType(ContentService.MimeType.JAVASCRIPT);
@@ -1074,7 +811,7 @@ function doGet(e) {
       var sheetValues = dataRange.getValues();
        if (sheetValues.length <= 1) { // Only header row or empty
          Logger.log("Sheet empty or only contains headers.");
-         return ContentService.createTextOutput(e.parameter.callback + '(' + JSON.stringify([]) + ')')
+         return ContentService.createTextOutput((e.parameter.callback || 'callback') + '(' + JSON.stringify([]) + ')') // Use 'callback' if param missing
            .setMimeType(ContentService.MimeType.JAVASCRIPT);
        }
       var headers = sheetValues.shift(); // Get headers (first row)
@@ -1090,8 +827,11 @@ function doGet(e) {
       var callback = e.parameter.callback;
       if (!callback || !/^[a-zA-Z0-9_]+$/.test(callback)) {
           Logger.log("Invalid or missing callback parameter in GET request: " + callback);
-          return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Invalid callback parameter" }))
-              .setMimeType(ContentService.MimeType.JSON);
+          // Return valid JSONP structure even for errors if possible
+          var errorCallback = callback || 'callback'; // Use default if invalid
+          return ContentService
+             .createTextOutput(errorCallback + '(' + JSON.stringify({ status: "error", message: "Invalid callback parameter" }) + ')')
+             .setMimeType(ContentService.MimeType.JAVASCRIPT);
       }
       var jsonpResponse = callback + '(' + JSON.stringify(json) + ')';
 
@@ -1100,29 +840,23 @@ function doGet(e) {
 
    } catch (err) {
       Logger.log("Error in doGet: " + err.toString() + " Stack: " + err.stack);
-      // Attempt to return a JSONP error if callback is valid
-      var callbackForError = e.parameter.callback;
-      if (callbackForError && /^[a-zA-Z0-9_]+$/.test(callbackForError)) {
-          return ContentService.createTextOutput(callbackForError + '(' + JSON.stringify({ status: "error", message: "Server error during GET" }) + ')')
-              .setMimeType(ContentService.MimeType.JAVASCRIPT);
-      } else {
-           // Fallback if callback is invalid
-          return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Server error during GET" }))
-              .setMimeType(ContentService.MimeType.JSON);
-      }
+      var errorCallback = e.parameter.callback || 'callback'; // Use default if invalid
+      return ContentService.createTextOutput(errorCallback + '(' + JSON.stringify({ status: "error", message: "Server error during GET" }) + ')')
+          .setMimeType(ContentService.MimeType.JAVASCRIPT);
    }
 }
 
 
 /**
-Handles POST requests. Used by the Worker App AND Monitor App to submit data.
-*/
+ * Handles POST requests. Used by the Worker App AND Monitor App to submit data.
+ */
 function doPost(e) {
   var lock = LockService.getScriptLock();
   var lockAcquired = lock.waitLock(30000); // Wait up to 30 seconds for lock
    if (!lockAcquired) {
       Logger.log("Error in doPost: Could not acquire lock.");
-      return ContentService.createTextOutput("Error: Server busy, please try again.");
+      // Return a plain text error, as POST doesn't use JSONP
+      return ContentService.createTextOutput("Error: Server busy, please try again.").setMimeType(ContentService.MimeType.TEXT);
    }
 
   try {
@@ -1135,7 +869,7 @@ function doPost(e) {
     if (!data || Object.keys(data).length === 0) { throw new Error("Received empty POST data."); }
 
     var arrivalTime = data["Arrival Time"]; var workerName = data["Worker Name"];
-    if (!arrivalTime || !workerName) { throw new Error("Missing 'Arrival Time' or 'Worker Name' in POST data. Data: " + JSON.stringify(data)); }
+    if (!arrivalTime || !workerName) { throw new Error("Missing 'Arrival Time' or 'Worker Name' in POST data."); }
 
     var dataRange = sheet.getDataRange(); var sheetValues = dataRange.getValues();
     var rowIndex = -1; // 0-based index in sheetValues array
@@ -1160,12 +894,11 @@ function doPost(e) {
       var sheetRowIndex = rowIndex + 1; // 1-based sheet row
       var updatesMade = 0;
       headers.forEach(function(header, index) {
-        if (data.hasOwnProperty(header)) { // Check if data explicitly sent for this header
+        if (data.hasOwnProperty(header)) {
           var colIndex = index + 1;
           var newValue = data[header];
-           // Avoid overwriting with blank if current value exists, unless explicitly intended (e.g., clearing Departure Time)
-           // Exception: Always update 'Alarm Status', 'Notes', 'Actual Departure Time', 'Last Known GPS', 'GPS Timestamp'
            var alwaysUpdateHeaders = ['Alarm Status', 'Notes', 'Actual Departure Time', 'Last Known GPS', 'GPS Timestamp'];
+          // Update if new value is different or if it's a header that should always be updated
           if (newValue !== sheetValues[rowIndex][index] || alwaysUpdateHeaders.includes(header)) {
              try {
                 sheet.getRange(sheetRowIndex, colIndex).setValue(newValue);
@@ -1180,7 +913,7 @@ function doPost(e) {
       var newRow = headers.map(header => data.hasOwnProperty(header) ? data[header] : "");
       try {
         sheet.appendRow(newRow); Logger.log("Appended new row" + logSuffix);
-        rowIndex = sheetValues.length; // Update rowIndex to the new last row (0-based) for alert check below
+        rowIndex = sheet.getLastRow() -1; // Update rowIndex to the new last row (0-based index in sheetValues CONCEPTUALLY) for alert check below
       } catch (appendErr) { throw new Error("Failed to append row" + logSuffix + ". Error: " + appendErr); }
     }
 
@@ -1189,8 +922,8 @@ function doPost(e) {
     if (currentStatus) {
         var immediateAlertTypes = ['EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN'];
         if (immediateAlertTypes.includes(currentStatus)) {
-             var finalRowIndex = (rowIndex !== -1) ? rowIndex + 1 : sheet.getLastRow(); // Get 1-based index of the affected row
-             var updatedRowData = {}; // Fetch potentially updated data for email context
+             var finalRowIndex = (rowIndex !== -1 && rowIndex < sheet.getLastRow()) ? rowIndex + 1 : sheet.getLastRow(); // Get 1-based index
+             var updatedRowData = {};
              try {
                  var updatedRowValues = sheet.getRange(finalRowIndex, 1, 1, headers.length).getValues()[0];
                  headers.forEach((header, j) => { updatedRowData[header] = updatedRowValues[j]; });
@@ -1198,13 +931,11 @@ function doPost(e) {
                  var notes = updatedRowData['Notes'] || "";
                  var alertAlreadySentMarker = "Immediate alert email sent for " + currentStatus;
 
-                 // Check if *this exact* status update already triggered an email (prevents duplicates if client sends twice)
                  if (!notes.includes(alertAlreadySentMarker)) {
                     sendAlertEmail(updatedRowData, currentStatus); // Send email
-                    // Add marker note
                     var notesColIndex = headers.indexOf("Notes") + 1;
                     if (notesColIndex > 0) {
-                        var newNote = (notes ? notes + "\n" : "") + alertAlreadySentMarker + " at " + new Date().toISOString();
+                        var newNote = (notes ? notes + "\\n" : "") + alertAlreadySentMarker + " at " + new Date().toISOString(); // Use \\n for newline in sheet cell
                         sheet.getRange(finalRowIndex, notesColIndex).setValue(newNote);
                     }
                  } else { Logger.log("Immediate alert email for " + currentStatus + logSuffix + " already sent. Skipping."); }
@@ -1212,17 +943,19 @@ function doPost(e) {
         }
     }
 
+
   } catch (err) {
-    Logger.log('FATAL Error in doPost: ' + err.toString() + " Stack: " + err.stack);
-    return ContentService.createTextOutput("Error: Server error during POST"); // Return generic error
+    // *** CORRECTED THIS BLOCK ***
+    Logger.log('FATAL Error in doPost: ' + err.toString() + " Stack: " + (err.stack ? err.stack : '(no stack)'));
+    return ContentService.createTextOutput("Error: Server error during POST. " + err.message).setMimeType(ContentService.MimeType.TEXT);
   } finally {
     if(lockAcquired) lock.releaseLock();
   }
-  return ContentService.createTextOutput("Success"); // Success
+  return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT); // Explicit TEXT response
 }
 
-
 // --- AUTOMATED TRIGGER FUNCTION ---
+/* ... (checkOverdueWorkers function remains the same as previous corrected version) ... */
 function checkOverdueWorkers() {
   var lock = LockService.getScriptLock();
   var lockAcquired = lock.waitLock(30000);
@@ -1242,172 +975,106 @@ function checkOverdueWorkers() {
     var statusColIndex = headers.indexOf('Alarm Status');
     var departureColIndex = headers.indexOf('Anticipated Departure Time');
     var notesColIndex = headers.indexOf('Notes');
-    var workerNameIndex = headers.indexOf('Worker Name'); // Needed for logging
+    var workerNameIndex = headers.indexOf('Worker Name');
 
-    if (statusColIndex === -1 || departureColIndex === -1 || workerNameIndex === -1) { throw new Error("Critical headers missing ('Alarm Status', 'Anticipated Departure Time', 'Worker Name')."); }
+    if (statusColIndex === -1 || departureColIndex === -1 || workerNameIndex === -1) { throw new Error("Critical headers missing."); }
 
-    var updatesMade = 0; // Count updates to potentially optimize writing later if needed
+    var updatesMade = 0;
 
-    for (var i = 1; i < sheetValues.length; i++) { // Start from data row 1
+    for (var i = 1; i < sheetValues.length; i++) {
       var row = sheetValues[i];
       var status = row[statusColIndex];
       var anticipatedDepartureStr = row[departureColIndex];
-      var workerName = row[workerNameIndex] || ('Row '+(i+1)); // Use name for logs
+      var workerName = row[workerNameIndex] || ('Row '+(i+1));
 
-      // Basic validation for the row
-      if (typeof status !== 'string' || !anticipatedDepartureStr || resolvedStatuses.includes(status)) {
-          continue; // Skip resolved, invalid, or incomplete rows silently
-      }
+      if (typeof status !== 'string' || !anticipatedDepartureStr || resolvedStatuses.includes(status)) { continue; }
 
       var anticipatedDeparture;
        try { anticipatedDeparture = new Date(anticipatedDepartureStr); if (isNaN(anticipatedDeparture)) throw new Error("Invalid date"); }
        catch (dateErr) { Logger.log("Skipping row " + (i+1) + " (Worker: "+workerName+") due to invalid date: " + anticipatedDepartureStr); continue; }
 
-      // Check if overdue
       if (nowMs > anticipatedDeparture.getTime()) {
         var overdueMinutes = (nowMs - anticipatedDeparture.getTime()) / 60000;
         var nextStatusLevel = null;
 
-        // Determine the highest alert level reached based on time
         if (overdueMinutes >= 60) { nextStatusLevel = 'ESCALATION_SENT'; }
         else if (overdueMinutes >= 45) { nextStatusLevel = 'EMAIL_3_SENT'; }
         else if (overdueMinutes >= 30) { nextStatusLevel = 'EMAIL_2_SENT'; }
         else if (overdueMinutes >= 15) { nextStatusLevel = 'EMAIL_1_SENT'; }
 
-        // Determine the current alert level (for comparison) - handle non-email statuses
-         var currentLevelValue = 0; // 0 for ON SITE, ALERT SENT, MISSED_CHECKIN etc.
+         var currentLevelValue = 0;
          if (status.startsWith('EMAIL_')) currentLevelValue = parseInt(status.split('_')[1]);
-         else if (status === 'ESCALATION_SENT') currentLevelValue = 4; // Higher than EMAIL_3
+         else if (status === 'ESCALATION_SENT') currentLevelValue = 4;
 
          var nextLevelValue = 0;
          if (nextStatusLevel && nextStatusLevel.startsWith('EMAIL_')) nextLevelValue = parseInt(nextStatusLevel.split('_')[1]);
          else if (nextStatusLevel === 'ESCALATION_SENT') nextLevelValue = 4;
 
-        // Send email only if the calculated next level is HIGHER than the current level
         if (nextStatusLevel && nextLevelValue > currentLevelValue) {
             try {
-                // Build worker object just for the email function
                 var worker = {}; headers.forEach((header, j) => { worker[header] = (j < row.length) ? row[j] : ""; });
-
-                // Update status in the sheet FIRST
                 sheet.getRange(i + 1, statusColIndex + 1).setValue(nextStatusLevel);
                 updatesMade++;
-
-                // Send the alert email
                 sendAlertEmail(worker, nextStatusLevel);
-
-                // Add a note that the email was sent
                 if (notesColIndex !== -1) {
                     var currentNotes = row[notesColIndex] || "";
-                    var newNote = (currentNotes ? currentNotes + "\n" : "") + "Automated email sent: " + nextStatusLevel + " at " + new Date().toISOString();
+                    var newNote = (currentNotes ? currentNotes + "\\n" : "") + "Auto email: " + nextStatusLevel + " at " + new Date().toISOString(); // Use \\n
                      sheet.getRange(i + 1, notesColIndex + 1).setValue(newNote);
-                     updatesMade++; // Count note update
+                     updatesMade++;
                 }
-                 Logger.log("Updated status to " + nextStatusLevel + " and sent email for worker " + workerName + " (Row " + (i+1) + ")");
-
-             } catch (triggerErr) {
-                 Logger.log("Error processing trigger for row " + (i+1) + " (Worker: "+workerName+"). Error: " + triggerErr);
-                 // Continue to next row even if one fails
-             }
+                 Logger.log("Updated status to " + nextStatusLevel + " / sent email for worker " + workerName + " (Row " + (i+1) + ")");
+             } catch (triggerErr) { Logger.log("Error processing trigger for row " + (i+1) + " (Worker: "+workerName+"). Error: " + triggerErr); }
         }
       }
-    } // End row loop
+    }
      if (updatesMade > 0) Logger.log("checkOverdueWorkers finished. Updates made: " + updatesMade);
 
   } catch (err) {
-    Logger.log('FATAL Error in checkOverdueWorkers: ' + err.toString() + " Stack: " + err.stack);
+    Logger.log('FATAL Error in checkOverdueWorkers: ' + err.toString() + " Stack: " + (err.stack ? err.stack : '(no stack)'));
   } finally {
     if(lockAcquired) lock.releaseLock();
   }
 }
 
 // --- EMAIL HELPER FUNCTION ---
+/* ... (sendAlertEmail function remains the same as previous corrected version) ... */
 function sendAlertEmail(workerData, alertType) {
    if (!workerData || !alertType) { Logger.log("sendAlertEmail: Missing workerData or alertType."); return; }
    var workerName = workerData['Worker Name'] || 'Unknown Worker';
-   var recipient;
-   var subjectPrefix = '';
+   var recipient; var subjectPrefix = '';
 
-   // Determine recipient and subject prefix based on alert type
-   if (alertType === 'ESCALATION_SENT') {
-      recipient = workerData['Escalation Contact Email'];
-      subjectPrefix = 'ESCALATION ALERT: ';
-   } else if (['EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN', 'EMAIL_1_SENT', 'EMAIL_2_SENT', 'EMAIL_3_SENT'].includes(alertType)) {
+   if (alertType === 'ESCALATION_SENT') { recipient = workerData['Escalation Contact Email']; subjectPrefix = 'ESCALATION ALERT: '; }
+   else if (['EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN', 'EMAIL_1_SENT', 'EMAIL_2_SENT', 'EMAIL_3_SENT'].includes(alertType)) {
        recipient = workerData['Emergency Contact Email'];
        if (alertType.startsWith('EMAIL_')) subjectPrefix = 'Overdue Alert: ';
        else if (alertType === 'MISSED_CHECKIN') subjectPrefix = 'MISSED CHECK-IN: ';
-       else subjectPrefix = 'URGENT ALERT: '; // For Panic/Duress
-   } else {
-       Logger.log("sendAlertEmail: Unknown alertType '" + alertType + "' for worker " + workerName);
-       return; // Don't send for unknown types
-   }
+       else subjectPrefix = 'URGENT ALERT: ';
+   } else { Logger.log("sendAlertEmail: Unknown alertType '" + alertType + "' for " + workerName); return; }
 
-   // Validate recipient basic format
     if (!recipient || !recipient.includes('@') || !recipient.includes('.')) {
-      // Log differently based on whether it's primary or escalation contact missing
       var missingContactType = (alertType === 'ESCALATION_SENT') ? "Escalation" : "Emergency";
-       Logger.log(\`Cannot send \${alertType} email for worker \${workerName}: Invalid or missing \${missingContactType} Contact Email ('\${recipient || 'empty'}'). Check settings.\`);
-       // Optionally: Try sending to the *other* contact as a fallback? Could be noisy.
-       // For now, just log and don't send if the designated recipient is invalid.
+       Logger.log(\`Cannot send \${alertType} for \${workerName}: Invalid/missing \${missingContactType} Email ('\${recipient || 'empty'}').\`);
        return;
    }
 
+  var body = ''; var subject = subjectPrefix + workerName;
+   var locationName = workerData['Location Name'] || 'N/A';
+   var locationAddress = workerData['Location Address'] || 'N/A';
+   var workerPhone = workerData['Worker Phone Number'] || 'N/A';
+   var anticipatedDepartureStr = 'N/A'; try { var depDate = new Date(workerData['Anticipated Departure Time']); if (!isNaN(depDate)) anticipatedDepartureStr = depDate.toLocaleString(); } catch(e) {}
+   var locationLink = \`https://www.google.com/maps?q=\$\${encodeURIComponent(locationAddress)}\`;
+   if (workerData['Last Known GPS'] && workerData['Last Known GPS'].includes(',')) { locationLink = \`https://www.google.com/maps?q=\$\${workerData['Last Known GPS']}\`; }
 
-  var body = '';
-  var subject = subjectPrefix + workerName; // Base subject
-
-   // Add fallbacks for potentially missing data in email body
-   var locationName = workerData['Location Name'] || 'Not specified';
-   var locationAddress = workerData['Location Address'] || 'Not specified';
-   var workerPhone = workerData['Worker Phone Number'] || 'Not specified';
-   var anticipatedDepartureStr = 'Not specified';
-    try { var depDate = new Date(workerData['Anticipated Departure Time']); if (!isNaN(depDate)) anticipatedDepartureStr = depDate.toLocaleString(); } catch(e) {}
-
-  var locationLink = \`https://www.google.com/maps?q=\${encodeURIComponent(locationAddress)}\`; // Default to address
-  if (workerData['Last Known GPS'] && workerData['Last Known GPS'].includes(',')) {
-    locationLink = \`https://www.google.com/maps?q=\${workerData['Last Known GPS']}\`; // Use GPS if available
-  }
-
-  // Generate email body content based on type
   switch(alertType) {
-    case 'EMERGENCY - PANIC BUTTON':
-      subject = 'URGENT PANIC ALERT for ' + workerName; // Override prefix
-      body = '<p><strong>A PANIC ALERT has been triggered by ' + workerName + '.<\/strong><\/p><p>This is a high-priority alert indicating a potential emergency situation. Please action your emergency procedures immediately.<\/p>';
-      break;
-    case 'DURESS_CODE_ACTIVATED':
-      subject = 'URGENT DURESS ALERT for ' + workerName; // Override prefix
-      body = '<p><strong>A SILENT DURESS ALARM has been triggered by ' + workerName + '.<\/strong><\/p><p>The worker entered their Duress PIN, possibly indicating they are under threat and unable to call for help directly. Treat as a high-priority emergency.<\/p>';
-      break;
-    case 'MISSED_CHECKIN':
-      body = '<p><strong>' + workerName + ' has missed a scheduled "Are you OK?" check-in.<\/strong><\/p><p>Please attempt to contact the worker.<\/p>';
-      break;
-    case 'ESCALATION_SENT':
-      subject = subject + ' is 60+ mins Overdue'; // Add detail
-      body = '<p>This is an escalation alert. ' + workerName + ' is now more than 60 minutes overdue from the anticipated departure time and has not responded to previous alerts or cleared their status.<\/p>';
-      break;
-     case 'EMAIL_1_SENT': case 'EMAIL_2_SENT': case 'EMAIL_3_SENT':
-        var minutesOverdueMatch = alertType.match(/EMAIL_(\d+)_SENT/);
-        var minutesOverdue = minutesOverdueMatch ? parseInt(minutesOverdueMatch[1]) * 15 : '?';
-        subject = subject + ' is ' + minutesOverdue + '+ mins Overdue'; // Add detail
-        body = '<p>' + workerName + ' is now more than ' + minutesOverdue + ' minutes overdue from the anticipated departure time.<\/p><p>Please attempt to contact the worker.<\/p>';
-      break;
+    case 'EMERGENCY - PANIC BUTTON': subject = 'URGENT PANIC ALERT for ' + workerName; body = '<p><strong>PANIC ALERT from ' + workerName + '.<\/strong><\/p><p>Action emergency procedures immediately.<\/p>'; break;
+    case 'DURESS_CODE_ACTIVATED': subject = 'URGENT DURESS ALERT for ' + workerName; body = '<p><strong>SILENT DURESS ALARM from ' + workerName + '.<\/strong><\/p><p>Worker may be under threat. Treat as high-priority emergency.<\/p>'; break;
+    case 'MISSED_CHECKIN': body = '<p><strong>' + workerName + ' missed a check-in.<\/strong><\/p><p>Attempt contact.<\/p>'; break;
+    case 'ESCALATION_SENT': subject = subject + ' is 60+ mins Overdue'; body = '<p>Escalation: ' + workerName + ' is >60 mins overdue & unresponsive.<\/p>'; break;
+    case 'EMAIL_1_SENT': case 'EMAIL_2_SENT': case 'EMAIL_3_SENT': var mins = (parseInt(alertType.split('_')[1]) * 15); subject = subject + ' is ' + mins + '+ mins Overdue'; body = '<p>' + workerName + ' is >' + mins + ' mins overdue.<\/p><p>Attempt contact.<\/p>'; break;
   }
-
-  var fullBody = \`<html><body style="font-family: Arial, sans-serif; line-height: 1.6;">\${body}<hr style="margin: 20px 0;"><h3>Visit Details:</h3><ul><li><strong>Worker:</strong> \${workerName}</li><li><strong>Phone:</strong> <a href="tel:\${workerPhone}">\${workerPhone}</a></li><li><strong>Location:</strong> \${locationName}</li><li><strong>Address:</strong> \${locationAddress}</li><li><strong>Anticipated Departure:</strong> \${anticipatedDepartureStr}</li></ul><p style="font-size: 1.1em; margin-top: 15px;"><a href="\${locationLink}" style="padding: 8px 12px; background-color: #4285F4; color: white; text-decoration: none; border-radius: 4px;">View Location on Map</a></p><p style="font-size: 0.8em; color: #777; margin-top: 25px;">This is an automated message from the Lone Worker Safety System.</p></body></html>\`;
-
-    try {
-      MailApp.sendEmail({
-        to: recipient,
-        subject: subject,
-        htmlBody: fullBody,
-        name: "LWS System Alert" // Optional: Set sender name
-      });
-      Logger.log('Email sent successfully to ' + recipient + ' for worker ' + workerName + ', alert type ' + alertType);
-    } catch (e) {
-      Logger.log('Failed to send email to ' + recipient + ' for worker ' + workerName + '. Error: ' + e.toString());
-      // Consider adding a note to the sheet that email failed?
-    }
-
+  var fullBody = \`<html><body style="font-family: Arial, sans-serif; line-height: 1.6;">\${body}<hr style="margin: 20px 0;"><h3>Visit Details:</h3><ul><li><strong>Worker:</strong> \${workerName}</li><li><strong>Phone:</strong> <a href="tel:\${workerPhone}">\${workerPhone}</a></li><li><strong>Location:</strong> \${locationName}</li><li><strong>Address:</strong> \${locationAddress}</li><li><strong>Anticipated Departure:</strong> \${anticipatedDepartureStr}</li></ul><p style="font-size: 1.1em; margin-top: 15px;"><a href="\${locationLink}" style="padding: 8px 12px; background-color: #4285F4; color: white; text-decoration: none; border-radius: 4px;">View Location</a></p><p style="font-size: 0.8em; color: #777; margin-top: 25px;">Automated message from LWS System.</p></body></html>\`;
+    try { MailApp.sendEmail({ to: recipient, subject: subject, htmlBody: fullBody, name: "LWS System Alert" }); Logger.log('Email sent to ' + recipient + ' for ' + workerName + ', type ' + alertType); }
+    catch (e) { Logger.log('Email failed for ' + recipient + ' (' + workerName + '). Error: ' + e.toString()); }
 }
 `;
 
@@ -1415,191 +1082,146 @@ function sendAlertEmail(workerData, alertType) {
             document.getElementById('admin_guide_template-tpl').innerHTML = `
 # Administrator Setup Guide: Lone Worker Safety System
 
-Welcome to the Lone Worker Safety (LWS) System. This guide will walk you through the complete setup and deployment process, including hosting your apps for free using GitHub Pages. Please follow the steps in order.
+Welcome! This guide explains setting up the LWS system, including hosting apps for free using GitHub Pages. Follow the steps carefully.
 
 ## **Prerequisites**
 
-1.  A **Google Account** (e.g., a free Gmail account or a Google Workspace account).
-2.  An **email address** to sign up for GitHub (if you don't have an account).
-3.  Basic computer skills (navigating websites, copy/pasting text, finding files).
+1.  A **Google Account** (like Gmail).
+2.  An **email address** for GitHub.
+3.  Basic computer skills (copy/paste, finding files).
 
 ---
 
 ## **Part 1: Use the Setup Tool (Steps 1-4)**
 
-This tool (\`setup.html\`) helps you configure and prepare the necessary files.
+This tool (\`setup.html\`) configures your files.
 
 1.  **Step 1: Create Google Sheet & Secret Key**
-    * Follow the instructions in **Step 1** of the tool:
-        * Create a new Google Sheet named \`Lone Worker Data\`.
-        * Use the **"Copy Sheet Headers"** button and paste them into cell \`A1\` of your sheet.
-        * **Create and enter a strong Secret Key** in the input field. This key protects your system. *The tool will remember this key for later steps.*
+    * Follow **Step 1** in the tool:
+        * Create a Google Sheet named \`Lone Worker Data\`.
+        * Click **"Copy Sheet Headers"** & paste into cell \`A1\` of the sheet.
+        * **Create & enter a strong Secret Key**. This is your system's password. *The tool remembers this.*
 
 2.  **Step 2: Deploy the Backend Script**
-    * Follow the instructions in **Step 2** of the tool:
-        * Open the **Apps Script** editor from your Google Sheet (\`Extensions > Apps Script\`).
-        * Delete any existing code.
-        * Click the **"Copy Script Code (with Secret Key)"** button. This copies the necessary code *with your Secret Key already added*.
-        * Paste this code into the Apps Script editor.
-        * **Deploy** the script as a **Web app**, ensuring you set "Execute as" to \`Me\` and "Who has access" to \`Anyone\`.
-        * **Authorize** the script when prompted (click "Advanced" > "Go to... (unsafe)" > "Allow").
-        * **Copy the Web app URL** provided after deployment.
+    * Follow **Step 2** in the tool:
+        * Open **Apps Script** from your sheet (\`Extensions > Apps Script\`).
+        * Delete default code.
+        * Click **"Copy Script Code (with Secret Key)"**. Your key is automatically included.
+        * Paste into Apps Script editor.
+        * Click **"Deploy" > "New deployment"**.
+        * Select Type: **"Web app"** (click ⚙️ first).
+        * Configure: Execute as \`Me\`, **Who has access: \`Anyone\`** (essential!).
+        * Click **"Deploy"**.
+        * **Authorize Access:** Click "Authorize", choose your account, click "Advanced", "Go to... (unsafe)", and "Allow".
+        * **Copy the Web app URL** provided.
+        * Click **"Done"**. Keep the script tab open.
 
 3.  **Step 3: Enter Deployed URL & Test Connection**
-    * Follow the instructions in **Step 3** of the tool:
-        * Paste the **Web App URL** (copied from the previous step) into the input field.
-        * Click the **"Test Connection"** button. The tool uses the URL and the Secret Key from Step 1 to check if everything is configured correctly.
-        * You **must** see a "✅ Success! Connection established." message. If not, review the troubleshooting tips in the main guide and re-check your Web App URL and deployment settings ("Who has access: Anyone").
+    * Follow **Step 3** in the tool:
+        * Paste the **Web App URL** you just copied.
+        * Click **"Test Connection"**.
+        * **Must see:** "✅ Success! Connection established.". If not, check the URL, Secret Key (in Step 1), and deployment access (\`Anyone\`).
 
 4.  **Step 4: Customize App Variables (Optional)**
-    * Adjust settings like the first alert time, check-in prompts, or the app icon URL if desired. Defaults are usually fine to start with.
+    * Adjust alert times, check-ins, or logo URL if needed. Defaults are fine to start.
 
 ---
 
 ## **Part 2: Generate Files & Set Up Hosting (Steps 5-6 + GitHub)**
 
-Now you'll create the final app files and put them online.
+Create final files and put them online.
 
 5.  **Step 5: Set Up Automatic Checker (Trigger)**
-    * Follow the instructions in **Step 5** of the tool *now*. This involves going back to the **Apps Script** editor tab:
-        * Go to the **Triggers** section (⏰ icon).
-        * Add a new trigger for the \`checkOverdueWorkers\` function to run as a **Time-driven** event, on a **Minutes timer**, every **5 minutes**.
-        * Set error notifications to \`Notify me daily\`.
-        * **Save** the trigger and **Authorize** again if prompted.
+    * Follow **Step 5** in the tool *now*. Go back to the **Apps Script** tab:
+        * Click **Triggers** (⏰ icon, left menu).
+        * Click **"+ Add Trigger"**.
+        * Settings: function \`checkOverdueWorkers\`, deployment \`Head\`, source \`Time-driven\`, type \`Minutes timer\`, interval \`Every 5 minutes\`, notifications \`Notify me daily\`.
+        * Click **Save**. **Authorize** again if asked.
 
 6.  **Step 6: Generate & Download App Package**
-    * Click the **"Generate & Download .zip Package"** button in Step 6 of the tool.
-    * Save the \`LWS_Deployment.zip\` file to your computer (e.g., Downloads folder).
-    * **Unzip** or **Extract** this file. You'll get a folder containing \`LoneWorkerApp\`, \`MonitoringDashboardApp\`, and guide files. *These app folders now contain your specific Web App URL and Secret Key embedded within them.*
+    * Click **"Generate & Download .zip Package"** in Step 6 of the tool.
+    * Save \`LWS_Deployment.zip\`.
+    * **Unzip/Extract** the file. Note the \`LoneWorkerApp\` and \`MonitoringDashboardApp\` folders inside. *These now contain your URL/Key.*
 
 7.  **Host Apps on GitHub Pages:**
     * **Sign up/Log in** to [github.com](https://github.com/).
-    * Create a **New repository** (Click "+" > "New repository").
-        * Name: e.g., \`lws-app\`
-        * Select **Public**.
-        * Check ☑️ **"Add a README file"**.
-        * Click **"Create repository"**.
-    * On the repository page, click **"Add file"** > **"Upload files"**.
-    * **Drag both** the \`LoneWorkerApp\` folder **and** the \`MonitoringDashboardApp\` folder from your unzipped files onto the GitHub upload area.
-    * Wait for files to list, add a commit message (e.g., "Upload apps"), and click **"Commit changes"**.
-    * Go to repository **"Settings"** > **"Pages"** (left menu).
-    * Under "Build and deployment", set Source to **"Deploy from a branch"**.
-    * Set Branch to \`main\` (or \`master\`), folder to **\`/(root)\`**, and click **"Save"**.
-    * Wait a few minutes for the site to publish. Refresh the Pages settings page until you see the live URL (e.g., \`https://YourUsername.github.io/lws-app/\`).
+    * Create a **New repository** ("+" > "New repository").
+        * Name: e.g., \`lws-app\` | **Public** | ☑️ Add README | Create.
+    * Go to the repository page. Click **"Add file" > "Upload files"**.
+    * **Drag both** \`LoneWorkerApp\` & \`MonitoringDashboardApp\` folders onto the upload area.
+    * Wait, then click **"Commit changes"**.
+    * Go to repository **"Settings" > "Pages"**.
+    * Source: **"Deploy from a branch"**.
+    * Branch: \`main\` (or \`master\`), Folder: **\`/(root)\`**. Click **Save**.
+    * **Wait 5-10 mins**. Refresh the Pages settings until you see the live URL (e.g., \`https://YourUsername.github.io/lws-app/\`). This is your base URL.
 
 ---
 
 ## **Part 3: Access Your Apps**
 
-* Your **Worker App** URL is: \`https://YourUsername.github.io/lws-app/LoneWorkerApp/\`
-* Your **Monitor App** URL is: \`https://YourUsername.github.io/lws-app/MonitoringDashboardApp/\`
+* **Worker App URL:** \`[Your Base URL]/LoneWorkerApp/\`
+* **Monitor App URL:** \`[Your Base URL]/MonitoringDashboardApp/\`
 
 **Distribution:**
-* Give the **Worker App URL** to your staff for their smartphone browsers. Tell them to fill in their details in the app's settings (gear icon) and optionally "Add to Home Screen".
-* Give the **Monitor App URL** to your safety monitor for their computer browser. It should connect automatically.
+* Give **Worker App URL** to staff for smartphone browsers. Tell them to fill settings (gear icon) & "Add to Home Screen".
+* Give **Monitor App URL** to monitor for desktop browser. It should connect automatically.
 
-**Setup Complete!** 🎉
+**Setup Complete!** 🎉 Keep your Google Sheet & GitHub repo secure.
 `;
 
             // INSTALLER GUIDE (No changes needed)
             document.getElementById('installer_guide_template-tpl').innerHTML = `
 # Optional Guide: Creating a Desktop Installer for the Monitor App
 
-While the **Monitoring App** works perfectly fine in a standard web browser (like Chrome, Firefox, Edge), some safety monitors might prefer having it run like a separate program on their desktop with its own icon in the taskbar.
+This guide explains how to use [**Nativefier**](https://github.com/nativefier/nativefier) to turn the Monitor App website into a simple desktop app (Windows \`.exe\`, Mac \`.app\`, etc.).
 
-This guide explains how to use a free tool called [**Nativefier**](https://github.com/nativefier/nativefier) to easily turn the Monitor App website into a simple desktop application for Windows, Mac, or Linux.
+## **Prerequisites**
 
-## **What is Nativefier?**
-
-Nativefier is a command-line tool (meaning you type commands into a special window) that takes a website address and wraps it into a basic desktop app. It's essentially creating a dedicated browser window just for that one website.
-
-## **Prerequisites (Things you need first)**
-
-1.  **Node.js Installed:** Nativefier needs Node.js to run. If you don't have it, it's easy and safe to install.
-    * Go to the official Node.js website: [nodejs.org](https://nodejs.org/)
-    * Download the **LTS** version recommended for most users. 
-    * Run the downloaded installer and accept the default options (click "Next" through the steps).
-2.  **Your Monitor App URL:** You need the web address (URL) where your Monitor App is hosted online (from Part 3, Step 6 of the main Setup Guide). Example: \`https://YourGitHubUsername.github.io/YourRepositoryName/MonitoringDashboardApp/\`
-3.  **Command Prompt Access:** You need to open a command-line interface:
-    * **Windows:** Press the Windows key, type \`cmd\`, and press Enter to open "Command Prompt". 
-    * **Mac:** Open "Finder", go to "Applications" > "Utilities", and double-click "Terminal". 
+1.  **Node.js Installed:** Download & install the **LTS** version from [nodejs.org](https://nodejs.org/).
+2.  **Your Monitor App URL:** The web address from the main Setup Guide (e.g., \`https://YourGitHubUsername.github.io/YourRepositoryName/MonitoringDashboardApp/\`).
+3.  **Command Prompt/Terminal:** (Search "cmd" on Windows, find "Terminal" in Utilities on Mac).
 
 ## **Instructions**
 
-1.  **Install Nativefier (One-time setup):**
-    * Open your Command Prompt (Windows) or Terminal (Mac).
-    * Type the following command **exactly** and press Enter:
-        \`\`\`bash
-        npm install -g nativefier
-        \`\`\`
-    * Wait for it to download and install. You might see some text scroll by. If it finishes without saying "ERROR", it worked.
+1.  **Install Nativefier:** Open Command Prompt/Terminal and run: \`npm install -g nativefier\` (Press Enter).
+2.  **Create App:** In the same window, run (replace URL with yours):
+    \`\`\`bash
+    nativefier --name "LWS Monitor" "https://YourGitHubUsername.github.io/YourRepositoryName/MonitoringDashboardApp/"
+    \`\`\`
+    Press Enter. Wait for it to finish.
+3.  **Find App:** Look for a new folder (e.g., \`LWS Monitor-win32-x64\`) in your user directory. The application (\`.exe\` or \`.app\`) is inside.
+4.  **Run/Distribute:** Double-click to run. Copy the whole folder to the monitor's computer. They run the app file from there. Create desktop shortcuts if needed.
 
-2.  **Create the Desktop App:**
-    * In the **same** Command Prompt or Terminal window, type the following command, but **replace the example URL with your actual Monitor App URL**. Make sure to keep the quotes \`"\`.
-        \`\`\`bash
-        nativefier "https://YourGitHubUsername.github.io/YourRepositoryName/MonitoringDashboardApp/"
-        \`\`\`
-        * _(Optional: Give it a better name)_ If you want the app file to be called something specific like "LWS Monitor", add \`--name "LWS Monitor"\` to the command:
-            \`\`\`bash
-            nativefier --name "LWS Monitor" "https://YourGitHubUsername.github.io/YourRepositoryName/MonitoringDashboardApp/"
-            \`\`\`
-    * Press Enter.
-    * Nativefier will work for a minute or two, downloading components and building the app. It will tell you where it saved the app when it's done.
-
-3.  **Find Your New App:**
-    * Nativefier usually saves the app in a new folder inside your user directory (e.g., \`C:\\Users\\YourUsername\` on Windows or \`/Users/YourUsername\` on Mac). The folder will have a name like \`LWS Monitor-win32-x64\` (for Windows) or \`LWS Monitor-darwin-x64\` (for Mac).
-    * Open that folder. Inside, you'll find the application file (e.g., \`LWS Monitor.exe\` on Windows or \`LWS Monitor.app\` on Mac).
-
-4.  **Run and Distribute:**
-    * Double-click the application file to run it. It should open your Monitor App in its own window.
-    * You can copy this entire folder (e.g., \`LWS Monitor-win32-x64\`) to your safety monitor's computer (e.g., via a USB drive or network share). They can then run the application file from inside that folder.
-    * (Optional) You can create a shortcut to the application file and place it on the desktop for easier access.
-
-## **Extra Options (For more customization)**
-
-You can add these flags to the \`nativefier\` command in Step 2:
-
-* \`--platform "windows"\` or \`--platform "macos"\` or \`--platform "linux"\`: If you want to build for a different operating system than the one you're currently using (Note: building for macOS usually requires you to be *on* a Mac).
-* \`--icon "C:\\Path\\To\\Your\\Icon.ico"\` (Windows) or \`--icon "/path/to/your/icon.icns"\` (Mac): Use a custom icon file for the app. You'll need an \`.ico\` file for Windows or \`.icns\` for Mac.
-* \`--single-instance\`: Prevents the monitor from accidentally opening multiple copies of the app.
-* \`--always-on-top\`: Makes the monitor window stay above all other windows (can be useful for dedicated monitoring stations).
-* \`--disable-dev-tools\`: Hides the browser's developer tools menu, simplifying the interface.
-
-**Example with options:**
-
-\`\`\`bash
-nativefier --name "LWS Monitor" --single-instance --always-on-top --icon "C:\\LWS\\icon.ico" "https://YourGitHubUsername.github.io/YourRepositoryName/MonitoringDashboardApp/"
-\`\`\`
-
-This creates a Windows app named "LWS Monitor" that only allows one instance, stays on top, and uses a custom icon located at \`C:\\LWS\\icon.ico\`.
+## **Extra Options** (Add after \`nativefier\` in Step 2)
+* \`--platform "windows" | "macos" | "linux"\` (Build for different OS).
+* \`--icon "C:\\Path\\To\\Icon.ico"\` (Use custom icon).
+* \`--single-instance\` (Allow only one copy open).
+* \`--always-on-top\` (Keep window above others).
+* \`--disable-dev-tools\` (Hide developer menu).
 `;
 
             // PROMO BLURB (No changes needed)
             document.getElementById('promo_blurb_template-tpl').innerHTML = `
 # Lone Worker Safety System: A Free, Self-Hosted Solution
 
-Ensure the safety of your staff in the community with our free, open-source Lone Worker Safety (LWS) system. Designed for organizations of all sizes, this system provides robust, real-time monitoring without the expensive monthly subscription fees of commercial products.
-
-Because you host it yourself on your own Google Account and web server, you retain full control over your data.
+Ensure staff safety with our free, open-source Lone Worker Safety (LWS) system. Ideal for any organization wanting robust monitoring without subscription fees. Host it yourself on Google & GitHub Pages for full data control.
 
 ## **How It Works**
 
-The system consists of two simple apps:
-
-1.  **The Worker App (for Smartphones):** A simple, secure Progressive Web App (PWA) for your lone workers. They select a location, set a visit duration, and check in. The app runs in their phone's web browser—no app store required.
-2.  **The Monitor App (for Desktop):** A web-based dashboard for your office safety monitor. It provides a real-time overview of all active workers, with flashing visual and loud audible alarms for missed check-ins, overdue visits, or panic alerts.
+1.  **Worker App (Smartphone PWA):** Simple browser-based app. Workers select location, set timer, check in. No app store needed.
+2.  **Monitor App (Desktop Web):** Real-time dashboard shows active workers. Visual/audible alarms for overdue, panic, or missed check-ins.
 
 ## **Key Features**
 
-* **Timed Visits:** Workers set a timer for their visit. If they go overdue, automated email alerts are sent.
-* **Panic Button (SOS):** A simple triple-tap on the "SOS" button sends an immediate, high-priority alert to the monitor and your emergency contacts.
-* **Duress PIN:** If a worker is under threat and forced to disable an alarm, they can enter a secret "Duress PIN." The app will *appear* to shut down normally but will silently send the monitor a high-priority "Duress" alert.
-* **"Are You OK?" Check-ins:** (Optional) The app can prompt workers to confirm their well-being at regular intervals. A missed check-in triggers an alert.
-* **Manual Alert Override:** A monitor can manually resolve any alert (including Duress) from their dashboard using a two-step confirmation process. This is vital for cases where the worker is confirmed safe via a phone call but cannot access their app.
-* **GPS & Location:** On an alert, the system automatically attempts to get the worker's GPS location and provides the monitor with a one-click link to Google Maps.
-* **Escalation Alerts:** The system automatically escalates alerts, from the first missed timer (e.g., \`EMAIL_1_SENT\`) to a high-priority \`ESCALATION_SENT\` alert after a set time, which can be configured to notify a different contact.
-* **100% Free & Self-Hosted:** No fees, ever. The system runs on a Google Sheet backend and any free static web host (like Netlify or GitHub Pages).
-* **Easy to Deploy:** A simple setup tool guides you through creating and customizing your apps in minutes.
+* **Timed Visits:** Auto email alerts if overdue.
+* **Panic Button (SOS):** Triple-tap sends immediate alert.
+* **Duress PIN:** Silent alarm if forced to cancel alert.
+* **"Are You OK?" Check-ins:** Optional prompts for worker status.
+* **Manual Alert Override:** Monitor can clear alerts (e.g., after phone confirmation) with 2-step process.
+* **GPS & Location:** Attempts GPS on alert, provides map link.
+* **Escalation:** Auto-escalates alerts over time.
+* **100% Free & Self-Hosted:** Uses Google Sheets & free web hosting.
+* **Easy Deployment:** Setup tool creates customized apps quickly.
 `;
 
              // Manifest Template
@@ -1613,103 +1235,17 @@ The system consists of two simple apps:
     "theme_color": "#111827",
     "orientation": "portrait",
     "icons": [
-        {
-            "src": "[[LOGO_URL_192]]",
-            "type": "image/png",
-            "sizes": "192x192"
-        },
-        {
-            "src": "[[LOGO_URL_512]]",
-            "type": "image/png",
-            "sizes": "512x512"
-        }
+        { "src": "[[LOGO_URL_192]]", "type": "image/png", "sizes": "192x192" },
+        { "src": "[[LOGO_URL_512]]", "type": "image/png", "sizes": "512x512" }
     ]
 }`;
             // Service Worker Template
             document.getElementById('sw_template-tpl').innerHTML = `
-const CACHE_NAME = 'lws-cache-v1';
-const urlsToCache = [
-    './',
-    './index.html',
-    'https://cdn.tailwindcss.com',
-    'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
-    'https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js',
-    '[[LOGO_URL]]'
-];
-
-self.addEventListener('install', event => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => {
-                console.log('Opened cache');
-                // Use addAll with error handling
-                return cache.addAll(urlsToCache).catch(error => {
-                    console.error('Failed to cache resources during install:', error);
-                    // Decide if install should fail or continue
-                    // For essential resources, re-throw to fail install: throw error;
-                });
-            })
-            .then(() => self.skipWaiting()) // Activate worker immediately
-    );
-});
-
-self.addEventListener('activate', event => {
-  // Clean up old caches if necessary
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.filter(cacheName => {
-          // Return true if you want to remove this cache, e.g., cacheName !== CACHE_NAME
-          return cacheName !== CACHE_NAME; // Example: Remove all caches except the current one
-        }).map(cacheName => {
-          return caches.delete(cacheName);
-        })
-      );
-    }).then(() => self.clients.claim()) // Take control of open clients immediately
-  );
-});
-
-
-self.addEventListener('fetch', event => {
-    // Basic cache-first strategy
-    event.respondWith(
-        caches.match(event.request)
-            .then(response => {
-                // Cache hit - return response
-                if (response) {
-                    return response;
-                }
-                // Not in cache - fetch from network
-                return fetch(event.request).then(
-                    networkResponse => {
-                        // Check if we received a valid response
-                        if(!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-                            return networkResponse; // Don't cache invalid responses
-                        }
-
-                        // IMPORTANT: Clone the response. A response is a stream
-                        // and because we want the browser to consume the response
-                        // as well as the cache consuming the response, we need
-                        // to clone it so we have two streams.
-                        var responseToCache = networkResponse.clone();
-
-                        caches.open(CACHE_NAME)
-                            .then(cache => {
-                                // Cache the new resource (optional - consider caching only specific types/URLs)
-                                // cache.put(event.request, responseToCache);
-                                // console.log('Cached new resource: ', event.request.url);
-                            });
-
-                        return networkResponse;
-                    }
-                ).catch(error => {
-                   console.error('Fetch failed; returning offline page instead.', error);
-                   // Optional: Return a custom offline fallback page
-                   // return caches.match('/offline.html');
-                });
-            })
-    );
-});
+const CACHE_NAME = 'lws-cache-v1-' + new Date().toISOString(); // Add timestamp to cache name for easier updates
+const urlsToCache = [ './', './index.html', 'https://cdn.tailwindcss.com', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', 'https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js', '[[LOGO_URL]]' ];
+self.addEventListener('install', e => { e.waitUntil( caches.open(CACHE_NAME).then(c => c.addAll(urlsToCache).catch(err => console.error('SW Cache AddAll failed:', err))) .then(() => self.skipWaiting()) ); });
+self.addEventListener('activate', e => { e.waitUntil( caches.keys().then(keys => Promise.all( keys.map(k => { if (k !== CACHE_NAME && k.startsWith('lws-cache-')) return caches.delete(k); }) )) .then(() => self.clients.claim()) ); });
+self.addEventListener('fetch', e => { if (e.request.method !== 'GET') return; e.respondWith( caches.match(e.request).then(res => res || fetch(e.request).then(netRes => { if (netRes.ok) { const clonedRes = netRes.clone(); caches.open(CACHE_NAME).then(c => c.put(e.request, clonedRes)); } return netRes; }).catch(() => { /* Optional: return offline page */ }) ) ); });
 `;
 
         } // End of injectTemplates function
