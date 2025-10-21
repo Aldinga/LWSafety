@@ -7,7 +7,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.0/FileSaver.min.js"></script>
     <style>
-        /* Style for required fields */
         .required-label::after { content: '*'; color: red; margin-left: 2px; }
     </style>
 </head>
@@ -29,7 +28,7 @@
                 <li>Click the button below to copy the required headers:
                     <button id="copyHeadersBtn" class="ml-2 bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded text-sm">Copy Sheet Headers</button>
                 </li>
-                <li>Go back to your Google Sheet, click **once** in cell <code class="bg-gray-200 px-1 py-0.5 rounded">A1</code> (the top-left cell), and **Paste** the headers (Ctrl+V or Cmd+V).</li>
+                <li>Go back to your Google Sheet, click **once** in cell <code class="bg-gray-200 px-1 py-0.5 rounded">A1</code>, and **Paste** the headers (Ctrl+V or Cmd+V).</li>
                 <li>**Create a Secret Key:** Enter a strong, unique password below. **Remember this key!**</li>
             </ol>
             <div>
@@ -53,7 +52,7 @@
                  <li>Configure: Description (optional), Execute as: `Me`, **Who has access: `Anyone`** (essential!).</li>
                  <li>Click **"Deploy"**.</li>
                  <li>**Authorize Access:** Click "Authorize access", choose account, "Advanced", "Go to... (unsafe)", "Allow".</li>
-                 <li>**Copy the Web app URL**.</li>
+                 <li>**Copy the Web app URL** provided after deployment.</li>
                  <li>Click **"Done"**. Keep this tab open for Step 5.</li>
              </ol>
         </div>
@@ -101,52 +100,9 @@
 
     <script>
         // --- Template Storage ---
-        // Global variables to hold template content
+        // Global object to hold template content as strings
         window.LWS_TEMPLATES = {
-            worker_app: null,
-            monitor_app: null,
-            apps_script: null,
-            admin_guide: null,
-            installer_guide: null,
-            promo_blurb: null,
-            manifest: null,
-            sw: null
-        };
-
-        const sheetHeaders = [
-            "Date", "Worker Name", "Worker Phone Number",
-            "Emergency Contact Name", "Emergency Contact Number", "Emergency Contact Email",
-            "Escalation Contact Name", "Escalation Contact Number", "Escalation Contact Email",
-            "Location Name", "Location Address", "Arrival Time", "Anticipated Departure Time",
-            "Actual Departure Time", "Alarm Status", "Last Known GPS", "GPS Timestamp", "Notes"
-        ].join("\t");
-
-        // --- Helper function to get template content ---
-        // *** MODIFIED to read from window.LWS_TEMPLATES ***
-        function getTemplateContent(id) {
-            const key = id.replace(/_template$/, ''); // Convert ID to object key
-            return window.LWS_TEMPLATES[key] || '';
-        }
-
-        // --- Populate Templates on Load ---
-        window.onload = () => {
-            // Function defined below, populates window.LWS_TEMPLATES
-            injectTemplates(); 
-        };
-        
-        // --- Button Event Listeners ---
-        // ... (Button logic remains largely the same, but uses getTemplateContent) ...
-        document.getElementById('copyHeadersBtn').addEventListener('click', () => { navigator.clipboard.writeText(sheetHeaders).then(() => alert('Headers copied!')).catch(err => alert('Copy failed: '+err)); });
-        document.getElementById('copyScriptBtn').addEventListener('click', () => { const key = document.getElementById('secretKey').value.trim(); if (!key) { alert('Enter Secret Key first.'); return; } let script = getTemplateContent('apps_script'); if (!script) { alert('Template error.'); return; } const escapedKey = key.replace(/\\/g, '\\\\').replace(/"/g, '\\"'); script = script.replace('var SECRET_KEY = "YOUR_SECRET_KEY_HERE";', \`var SECRET_KEY = "\${escapedKey}";\`); navigator.clipboard.writeText(script).then(() => alert('Script code with key copied!')).catch(err => alert('Copy failed: '+err)); });
-        document.getElementById('testConnectionBtn').addEventListener('click', () => { const url = document.getElementById('scriptUrl').value.trim(); const key = document.getElementById('secretKey').value.trim(); const statusEl = document.getElementById('testStatus'); if (!key) { statusEl.textContent = '❌ Error: Enter Secret Key in Step 1.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; return; } if (!url) { statusEl.textContent = '❌ Error: URL required.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; return; } statusEl.textContent = 'Testing...'; statusEl.className = 'ml-3 text-gray-500'; const cbName = 'jscb_' + Date.now(); const script = document.createElement('script'); let timeout; window[cbName] = (data) => { clearTimeout(timeout); delete window[cbName]; try { document.body.removeChild(script); } catch(e){} if (data.status === 'error' && data.message.includes('Access Denied')) { statusEl.textContent = '❌ Access Denied! Check Key.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; } else if (Array.isArray(data)) { statusEl.textContent = '✅ Success!'; statusEl.className = 'ml-3 text-green-600 font-semibold'; } else { statusEl.textContent = '⚠️ Unexpected data. Check URL/Deployment.'; statusEl.className = 'ml-3 text-yellow-600 font-semibold'; } }; script.src = url + '?callback=' + cbName + '&token=' + encodeURIComponent(key) + '&t=' + Date.now(); script.onerror = () => { clearTimeout(timeout); delete window[cbName]; try { document.body.removeChild(script); } catch(e){} statusEl.textContent = '❌ Failed! Check URL/Deployment/CORS.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; }; document.body.appendChild(script); timeout = setTimeout(() => { if (window[cbName]) { delete window[cbName]; try { document.body.removeChild(script); } catch(e){} statusEl.textContent = '❌ Timeout! Check URL/Network.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; } }, 15000); });
-        document.getElementById('generateBtn').addEventListener('click', async () => { const url = document.getElementById('scriptUrl').value.trim(); const key = document.getElementById('secretKey').value.trim(); if (!key) { alert("Enter Secret Key in Step 1."); return; } if (!url) { alert("Enter Web App URL in Step 3."); return; } const statusText = document.getElementById('testStatus').textContent || ""; if (!statusText.includes("✅ Success") && !confirm("Connection test failed/not run. Proceed anyway?")) return; try { const zip = new JSZip(); const alertTime = document.getElementById('firstAlert').value; const checkin = document.getElementById('checkinEnabled').value; const interval = document.getElementById('checkinInterval').value; const logo = document.getElementById('companyLogo').value.trim() || 'https://i.postimg.cc/dVmVg3Pn/favicon-logo-for-LWSApp.png'; let workerApp = getTemplateContent('worker_app'); let monitorApp = getTemplateContent('monitor_app'); let manifest = getTemplateContent('manifest'); let sw = getTemplateContent('sw'); let admin = getTemplateContent('admin_guide'); let installer = getTemplateContent('installer_guide'); let promo = getTemplateContent('promo_blurb'); if (!workerApp || !monitorApp || !manifest || !sw || !admin || !installer || !promo) throw new Error("Template loading failed."); workerApp = workerApp.replace('const FIRST_ALERT_MINUTES = 15;', \`const FIRST_ALERT_MINUTES = \${alertTime || 15};\`); workerApp = workerApp.replace('const CHECKIN_ENABLED = false;', \`const CHECKIN_ENABLED = \${checkin || 'false'};\`); workerApp = workerApp.replace('const CHECKIN_INTERVAL = 30;', \`const CHECKIN_INTERVAL = \${interval || 30};\`); workerApp = workerApp.replace(/https:\\/\\/i\\.postimg\\.cc\\/dVmVg3Pn\\/favicon-logo-for-LWSApp\\.png/g, logo); workerApp = workerApp.replace('<link rel="manifest" href="manifest.json">', \`<link rel="canonical" href="?scriptUrl=\${encodeURIComponent(url)}">\\n<link rel="manifest" href="manifest.json">\`); const workerFolder = zip.folder("LoneWorkerApp"); workerFolder.file("index.html", workerApp); manifest = manifest.replace('[[LOGO_URL_192]]', logo); manifest = manifest.replace('[[LOGO_URL_512]]', logo); workerFolder.file("manifest.json", manifest); sw = sw.replace('[[LOGO_URL]]', logo); workerFolder.file("sw.js", sw); const escapedKey = key.replace(/\\/g, '\\\\').replace(/"/g, '\\"'); const loginScript = \`\\n<script>(function(){ const u="\${url}"; const k="\${escapedKey}"; if(u&&k){localStorage.setItem('lwsMonitorUrl',u); localStorage.setItem('lwsMonitorKey',k);}})();<\/script>\\n</body>\`; monitorApp = monitorApp.replace('</body>', loginScript); const monitorFolder = zip.folder("MonitoringDashboardApp"); monitorFolder.file("index.html", monitorApp); zip.file("Administrator Setup Guide.md", admin); zip.file("Installer Creation Guide.md", installer); zip.file("Promotional Blurb.md", promo); const content = await zip.generateAsync({ type: "blob" }); saveAs(content, "LWS_Deployment.zip"); } catch (e) { console.error("Zip Error:", e); alert("Zip generation failed: " + e.message); } });
-
-
-        // --- Helper function to inject all template content into JS variables ---
-        // *** MODIFIED to store in window.LWS_TEMPLATES ***
-        function injectTemplates() {
-            // WORKER APP
-            window.LWS_TEMPLATES.worker_app = `
+            worker_app: `
 <!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
@@ -173,8 +129,6 @@ body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparen
 .long-press-btn.pressing::after { width: 100%; transition: width 1.5s linear; /* Ensure transition applies during press */ }
 .slider-thumb::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; background: #3b82f6; cursor: pointer; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.2); }
 .slider-thumb::-moz-range-thumb { width: 24px; height: 24px; background: #3b82f6; cursor: pointer; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.2); }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-/*.animate-fadeIn { animation: fadeIn 0.3s ease-in-out; }*/ /* Using opacity transition instead */
 header button svg, .edit-location-btn svg { pointer-events: none; }
 <\/style>
 <\/head>
@@ -304,7 +258,7 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
 `;
 
             // MONITOR APP
-            setText('monitor_app', `
+            window.LWS_TEMPLATES.monitor_app = `
 <!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
@@ -355,7 +309,7 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
     <\/div>
 <\/div>
 <script>
-    /* ... Monitor App JavaScript (unchanged) ... */
+    /* ... Monitor App JavaScript ... */
     let setupPage, dashboardPage, googleSheetUrlInput, saveUrlBtn, resetUrlBtn, workerList, statusIndicator, lastUpdatedEl, alertOverlay, alertDetails, acknowledgeBtn, modalBackdrop, alertModal, alertModalTitle, alertModalMessage, alertModalOkBtn, secretKeyInput, sizeWarningBanner, closeWarningBtn, resolveModal, resolveWorkerName, resolveConfirmInput, cancelResolveBtn, confirmResolveBtn;
     let sheetUrl = ''; let secretKey = ''; let pollingInterval; let lastKnownStatuses = {}; let alarm; let isFirstLoad = true;
     function navigate(page) { const activeClass = 'flex'; const hiddenClass = 'hidden'; if (page === 'setup') { setupPage.classList.remove(hiddenClass); setupPage.classList.add(activeClass); dashboardPage.classList.add(hiddenClass); dashboardPage.classList.remove('flex', 'flex-col'); googleSheetUrlInput.value = localStorage.getItem('lwsMonitorUrl') || ''; secretKeyInput.value = localStorage.getItem('lwsMonitorKey') || ''; } else if (page === 'dashboard') { setupPage.classList.add(hiddenClass); setupPage.classList.remove(activeClass); dashboardPage.classList.remove(hiddenClass); dashboardPage.classList.add('flex', 'flex-col'); } }
@@ -368,7 +322,7 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
     function stopAlarm() { if (alarm && alarm.loop && Tone.Transport.state === 'started') { Tone.Transport.stop(); Tone.Transport.cancel(); alarm.loop.dispose(); alarm.loop = null; } alertOverlay.classList.add('hidden'); }
     function fetchData() { if (!sheetUrl || !secretKey) { console.warn("Fetch skipped: URL/Key missing."); return; } statusIndicator.classList.remove('bg-green-500', 'bg-red-500'); statusIndicator.classList.add('bg-yellow-500'); statusIndicator.title = "Fetching..."; const script = document.createElement('script'); const callbackName = 'jscb_' + Date.now(); let scriptTimeout; window[callbackName] = function(data) { clearTimeout(scriptTimeout); delete window[callbackName]; try { document.body.removeChild(script); } catch(e) {} if (data.status === 'error' && data.message.includes('Access Denied')) { console.error("Access Denied."); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Access Denied"; lastUpdatedEl.textContent = 'Denied'; if (isFirstLoad) showAlert("Access Denied", "Incorrect Secret Key. Click settings (⚙️) to reset."); clearInterval(pollingInterval); isFirstLoad = false; navigate('setup'); } else if (Array.isArray(data)) { statusIndicator.classList.remove('bg-yellow-500', 'bg-red-500'); statusIndicator.classList.add('bg-green-500'); statusIndicator.title = "Connected"; lastUpdatedEl.textContent = 'Upd: ' + new Date().toLocaleTimeString(); sizeWarningBanner.classList.toggle('hidden', data.length < 2500); processData(data); isFirstLoad = false; } else { console.error("Bad data:", data); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Data Error"; lastUpdatedEl.textContent = 'Error'; if (isFirstLoad) showAlert("Data Error", "Unexpected data. Check Script logs."); isFirstLoad = false; } }; script.src = sheetUrl + '?callback=' + callbackName + '&token=' + encodeURIComponent(secretKey) + '&t=' + Date.now(); script.onerror = () => { clearTimeout(scriptTimeout); delete window[callbackName]; try { document.body.removeChild(script); } catch(e) {} console.error("Fetch error."); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Connection Failed"; lastUpdatedEl.textContent = 'Failed'; if (isFirstLoad) { showAlert( "Connection Failed", "Check URL, script deployment, & network."); isFirstLoad = false; navigate('setup'); } }; document.body.appendChild(script); scriptTimeout = setTimeout(() => { if (window[callbackName]) { console.error("Fetch timeout."); script.onerror(); } }, 20000); }
     function processData(data) { const active = ["ON SITE", "ALERT SENT", "MISSED_CHECKIN", "EMAIL_1_SENT", "EMAIL_2_SENT", "EMAIL_3_SENT", "EMERGENCY - PANIC BUTTON", "DURESS_CODE_ACTIVATED", "ESCALATION_SENT"]; const workers = data.filter(w => active.includes(w['Alarm Status'])); const prio = { "DURESS_CODE_ACTIVATED": 1, "EMERGENCY - PANIC BUTTON": 2, "ESCALATION_SENT": 3, "MISSED_CHECKIN": 4, "EMAIL_3_SENT": 5, "EMAIL_2_SENT": 6, "EMAIL_1_SENT": 7, "ALERT SENT": 8, "ON SITE": 9 }; workers.sort((a,b) => (prio[a['Alarm Status']] || 99) - (prio[b['Alarm Status']] || 99) || (a['Worker Name'] || '').localeCompare(b['Worker Name'] || '')); renderWorkers(workers); checkForNewAlerts(workers); }
-    function renderWorkers(workers) { workerList.innerHTML = ''; if (workers.length === 0) { workerList.innerHTML = '<div class="text-center text-gray-500 mt-10"><p class="text-xl">No active workers.<\/p><\/div>'; return; } workers.forEach(w => { let bg = 'bg-gray-700', txt = 'text-gray-300', bord = 'border-transparent', flash = ''; switch(w['Alarm Status']) { case 'DURESS_CODE_ACTIVATED': bg = 'bg-purple-800'; txt = 'text-white'; bord = 'border-purple-400'; flash = 'flashing-duress'; break; case 'EMERGENCY - PANIC BUTTON': bg = 'bg-red-700'; txt = 'text-white'; bord = 'border-red-400'; flash = 'flashing-alert'; break; case 'ESCALATION_SENT': case 'EMAIL_3_SENT': case 'EMAIL_2_SENT': case 'EMAIL_1_SENT': case 'ALERT SENT': case 'MISSED_CHECKIN': bg = 'bg-yellow-700'; txt = 'text-white'; bord = 'border-yellow-400'; break; } let timeStr = 'N/A'; try { const dt = new Date(w['Anticipated Departure Time']); if (!isNaN(dt)) timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (e) {} let locLink = ''; let contactInfo = ''; let resolveBtn = ''; const isAlert = w['Alarm Status'] !== 'ON SITE'; if (isAlert) { let url = '#', title = 'No location'; const gps = w['Last Known GPS']; const adr = w['Location Address']; if (gps && gps.includes(',')) { url = \`http://googleusercontent.com/maps.google.com/6{gps}\`; title = 'View GPS'; } else if (adr) { url = \`http://googleusercontent.com/maps.google.com/6{encodeURIComponent(adr)}\`; title = 'View address'; } if(url !== '#') locLink = \`<a href="\${url}" target="_blank" title="\${title}" class="mt-1 inline-flex items-center text-sm text-blue-300 hover:text-blue-200"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>View Location</a>\`; contactInfo = \`<div class="mt-3 pt-2 border-t border-white/20 text-xs space-y-1"><p>W: <a href="tel:\${w['Worker Phone Number']}" class="text-blue-300 hover:text-blue-200">\${w['Worker Phone Number'] || 'N/A'}</a></p><p>EC: \${w['Emergency Contact Name'] || 'N/A'} - <a href="tel:\${w['Emergency Contact Number']}" class="text-blue-300 hover:text-blue-200">\${w['Emergency Contact Number'] || 'N/A'}</a></p></div>\`; resolveBtn = \`<button class="resolve-alert-btn mt-3 w-full bg-green-700 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm" data-name="\${w['Worker Name']}" data-arrival="\${w['Arrival Time']}">Manually Resolve</button>\`; } let batteryIcon = (w.Notes && w.Notes.includes('LOW BATTERY')) ? '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block text-red-400 ml-2 animate-pulse" title="Low Battery"><path d="M11 7h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><path d="M19 12h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M4 12H2.5A1.5 1.5 0 0 0 1 13.5v1A1.5 1.5 0 0 0 2.5 16H4"/></svg>' : ''; const card = document.createElement('div'); card.className = \`p-4 rounded-lg shadow-md \${bg} \${txt} border-2 \${bord} \${flash}\`; card.innerHTML = \`<div class="flex justify-between items-start"><div class="flex-1 min-w-0"><p class="font-bold text-xl truncate">\${w['Worker Name'] || '?'}\${batteryIcon}</p><p class="text-sm truncate">\${w['Location Name'] || '?'}</p>\${locLink}</div><div class="text-right flex-shrink-0 ml-4"><p class="font-semibold text-lg">\${(w['Alarm Status'] || '?').replace(/_/g, ' ')}</p><p class="text-sm">Due: \${timeStr}</p></div></div>\${contactInfo}\${resolveBtn}\`; workerList.appendChild(card); }); }
+    function renderWorkers(workers) { workerList.innerHTML = ''; if (workers.length === 0) { workerList.innerHTML = '<div class="text-center text-gray-500 mt-10"><p class="text-xl">No active workers.<\/p><\/div>'; return; } workers.forEach(w => { let bg = 'bg-gray-700', txt = 'text-gray-300', bord = 'border-transparent', flash = ''; switch(w['Alarm Status']) { case 'DURESS_CODE_ACTIVATED': bg = 'bg-purple-800'; txt = 'text-white'; bord = 'border-purple-400'; flash = 'flashing-duress'; break; case 'EMERGENCY - PANIC BUTTON': bg = 'bg-red-700'; txt = 'text-white'; bord = 'border-red-400'; flash = 'flashing-alert'; break; case 'ESCALATION_SENT': case 'EMAIL_3_SENT': case 'EMAIL_2_SENT': case 'EMAIL_1_SENT': case 'ALERT SENT': case 'MISSED_CHECKIN': bg = 'bg-yellow-700'; txt = 'text-white'; bord = 'border-yellow-400'; break; } let timeStr = 'N/A'; try { const dt = new Date(w['Anticipated Departure Time']); if (!isNaN(dt)) timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (e) {} let locLink = ''; let contactInfo = ''; let resolveBtn = ''; const isAlert = w['Alarm Status'] !== 'ON SITE'; if (isAlert) { let url = '#', title = 'No location'; const gps = w['Last Known GPS']; const adr = w['Location Address']; if (gps && gps.includes(',')) { url = \`http://googleusercontent.com/maps.google.com/8{gps}\`; title = 'View GPS'; } else if (adr) { url = \`http://googleusercontent.com/maps.google.com/8{encodeURIComponent(adr)}\`; title = 'View address'; } if(url !== '#') locLink = \`<a href="\${url}" target="_blank" title="\${title}" class="mt-1 inline-flex items-center text-sm text-blue-300 hover:text-blue-200"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>View Location</a>\`; contactInfo = \`<div class="mt-3 pt-2 border-t border-white/20 text-xs space-y-1"><p>W: <a href="tel:\${w['Worker Phone Number']}" class="text-blue-300 hover:text-blue-200">\${w['Worker Phone Number'] || 'N/A'}</a></p><p>EC: \${w['Emergency Contact Name'] || 'N/A'} - <a href="tel:\${w['Emergency Contact Number']}" class="text-blue-300 hover:text-blue-200">\${w['Emergency Contact Number'] || 'N/A'}</a></p></div>\`; resolveBtn = \`<button class="resolve-alert-btn mt-3 w-full bg-green-700 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm" data-name="\${w['Worker Name']}" data-arrival="\${w['Arrival Time']}">Manually Resolve</button>\`; } let batteryIcon = (w.Notes && w.Notes.includes('LOW BATTERY')) ? '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block text-red-400 ml-2 animate-pulse" title="Low Battery"><path d="M11 7h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><path d="M19 12h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M4 12H2.5A1.5 1.5 0 0 0 1 13.5v1A1.5 1.5 0 0 0 2.5 16H4"/></svg>' : ''; const card = document.createElement('div'); card.className = \`p-4 rounded-lg shadow-md \${bg} \${txt} border-2 \${bord} \${flash}\`; card.innerHTML = \`<div class="flex justify-between items-start"><div class="flex-1 min-w-0"><p class="font-bold text-xl truncate">\${w['Worker Name'] || '?'}\${batteryIcon}</p><p class="text-sm truncate">\${w['Location Name'] || '?'}</p>\${locLink}</div><div class="text-right flex-shrink-0 ml-4"><p class="font-semibold text-lg">\${(w['Alarm Status'] || '?').replace(/_/g, ' ')}</p><p class="text-sm">Due: \${timeStr}</p></div></div>\${contactInfo}\${resolveBtn}\`; workerList.appendChild(card); }); }
     function checkForNewAlerts(workers) { const newS = {}; const crit = ['ALERT SENT', 'EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN']; const upd = ['EMAIL_1_SENT', 'EMAIL_2_SENT', 'EMAIL_3_SENT', 'ESCALATION_SENT']; workers.forEach(w => { const k = w['Worker Name'] + '-' + w['Arrival Time']; const oldS = lastKnownStatuses[k]; const newS_val = w['Alarm Status']; newS[k] = newS_val; if (newS_val !== oldS) { if (crit.includes(newS_val) && !crit.includes(oldS)) playAlarm(w); else if (upd.includes(newS_val) && !upd.includes(oldS)) playUpdateSound(); } }); lastKnownStatuses = newS; }
     function acknowledgeAlert() { stopAlarm(); const arrival = acknowledgeBtn.dataset.arrivalTime; const name = acknowledgeBtn.dataset.workerName; const data = { "Arrival Time": arrival, "Worker Name": name, Notes: 'Alert acknowledged by monitor at ' + new Date().toISOString() }; const fd = new FormData(); for (const k in data) fd.append(k, data[k]); fetch(sheetUrl, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(fd) }).then(() => console.log("Ack note sent.")).catch(e => console.error("Ack note failed:", e)); }
     function sendResolveAlert(name, arrival) { const data = { "Arrival Time": arrival, "Worker Name": name, "Alarm Status": "MONITOR_CLEARED_ALERT", Notes: 'Manually resolved by monitor at ' + new Date().toISOString() }; const fd = new FormData(); for (const k in data) fd.append(k, data[k]); fetch(sheetUrl, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(fd) }).then(() => { hideModals(); fetchData(); }).catch(e => { console.error("Resolve failed:", e); showAlert("Error", "Could not resolve."); }); }
@@ -380,8 +334,8 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
 <\/html>
 `;
 
-            // APPS SCRIPT (FILE 4 - CORRECTED SYNTAX)
-            setText('apps_script', `
+            // APPS SCRIPT (Corrected)
+            window.LWS_TEMPLATES.apps_script = `
 // ##### --------------------------------------------------- #####
 // ##### Lone Worker Safety System - Google Apps Script Backend #####
 // ##### --------------------------------------------------- #####
@@ -411,7 +365,7 @@ function doGet(e) {
   try {
       var dataRange = sheet.getDataRange();
       var sheetValues = dataRange.getValues();
-       // *** CORRECTED LINE 31 ***
+       // CORRECTED: Use <=
        if (sheetValues.length <= 1) { // Only header row or empty
          Logger.log("Sheet empty or only contains headers.");
          return ContentService.createTextOutput((e.parameter.callback || 'callback') + '(' + JSON.stringify([]) + ')') // Use 'callback' if param missing
@@ -422,7 +376,7 @@ function doGet(e) {
       var json = sheetValues.map(function(row) {
         var obj = {};
         headers.forEach(function(header, i) {
-          // *** CORRECTED LINE 41 ***
+          // CORRECTED: Use <
           obj[header] = (i < row.length) ? row[i] : ""; // Handle short rows
         });
         return obj;
@@ -431,8 +385,7 @@ function doGet(e) {
       var callback = e.parameter.callback;
       if (!callback || !/^[a-zA-Z0-9_]+$/.test(callback)) {
           Logger.log("Invalid or missing callback parameter in GET request: " + callback);
-          // Return valid JSONP structure even for errors if possible
-          var errorCallback = callback || 'callback'; // Use default if invalid
+          var errorCallback = callback || 'callback';
           return ContentService
              .createTextOutput(errorCallback + '(' + JSON.stringify({ status: "error", message: "Invalid callback parameter" }) + ')')
              .setMimeType(ContentService.MimeType.JAVASCRIPT);
@@ -444,7 +397,7 @@ function doGet(e) {
 
    } catch (err) {
       Logger.log("Error in doGet: " + err.toString() + " Stack: " + err.stack);
-      var errorCallback = e.parameter.callback || 'callback'; // Use default if invalid
+      var errorCallback = e.parameter.callback || 'callback';
       return ContentService.createTextOutput(errorCallback + '(' + JSON.stringify({ status: "error", message: "Server error during GET" }) + ')')
           .setMimeType(ContentService.MimeType.JAVASCRIPT);
    }
@@ -456,10 +409,9 @@ function doGet(e) {
  */
 function doPost(e) {
   var lock = LockService.getScriptLock();
-  var lockAcquired = lock.waitLock(30000); // Wait up to 30 seconds for lock
+  var lockAcquired = lock.waitLock(30000);
    if (!lockAcquired) {
       Logger.log("Error in doPost: Could not acquire lock.");
-      // Return a plain text error, as POST doesn't use JSONP
       return ContentService.createTextOutput("Error: Server busy, please try again.").setMimeType(ContentService.MimeType.TEXT);
    }
 
@@ -467,7 +419,7 @@ function doPost(e) {
     if (!sheet) { throw new Error("Active sheet not found."); }
     var headersRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
     var headers = headersRange.getValues()[0];
-     // *** CORRECTED LINE 85 ***
+     // CORRECTED: Use >
      if (!headers || headers.length === 0 || headers.every(h => !h)) { throw new Error("Sheet headers are missing or empty in row 1."); }
 
     var data = e.parameter;
@@ -477,84 +429,75 @@ function doPost(e) {
     if (!arrivalTime || !workerName) { throw new Error("Missing 'Arrival Time' or 'Worker Name' in POST data."); }
 
     var dataRange = sheet.getDataRange(); var sheetValues = dataRange.getValues();
-    var rowIndex = -1; // 0-based index in sheetValues array
+    var rowIndex = -1; // 0-based index
     var arrivalTimeIndex = headers.indexOf("Arrival Time"); var workerNameIndex = headers.indexOf("Worker Name");
     if (arrivalTimeIndex === -1 || workerNameIndex === -1) { throw new Error("'Arrival Time' or 'Worker Name' header not found."); }
 
-    // Search backwards for potential faster match on recent entries
-    // *** CORRECTED >= ***
-    for (var i = sheetValues.length - 1; i >= 1; i--) { // Start from last row, stop before header
+    // CORRECTED: Use >=
+    for (var i = sheetValues.length - 1; i >= 1; i--) {
         var rowArrivalTimeISO = "";
         try { if (sheetValues[i][arrivalTimeIndex]) { rowArrivalTimeISO = new Date(sheetValues[i][arrivalTimeIndex]).toISOString(); } }
         catch (dateErr) { Logger.log("Skipping date parse error in doPost search, row " + (i+1) + ": " + dateErr); continue; }
         var rowWorkerName = sheetValues[i][workerNameIndex];
 
         if (typeof rowWorkerName === 'string' && rowWorkerName.trim() === workerName.trim() && rowArrivalTimeISO === arrivalTime) {
-          rowIndex = i; break; // Found match (0-based index)
+          rowIndex = i; break;
         }
     }
 
     var logSuffix = " for worker: " + workerName + " arriving at " + arrivalTime;
 
-    if (rowIndex !== -1) { // Update existing row
-      var sheetRowIndex = rowIndex + 1; // 1-based sheet row
+    if (rowIndex !== -1) { // Update
+      var sheetRowIndex = rowIndex + 1;
       var updatesMade = 0;
       headers.forEach(function(header, index) {
         if (data.hasOwnProperty(header)) {
           var colIndex = index + 1;
           var newValue = data[header];
            var alwaysUpdateHeaders = ['Alarm Status', 'Notes', 'Actual Departure Time', 'Last Known GPS', 'GPS Timestamp'];
-          // Update if new value is different or if it's a header that should always be updated
           if (newValue !== sheetValues[rowIndex][index] || alwaysUpdateHeaders.includes(header)) {
-             try {
-                sheet.getRange(sheetRowIndex, colIndex).setValue(newValue);
-                updatesMade++;
-             } catch (rangeErr) { Logger.log("Error setting value at row " + sheetRowIndex + ", col " + colIndex + logSuffix + ". Error: " + rangeErr); }
+             try { sheet.getRange(sheetRowIndex, colIndex).setValue(newValue); updatesMade++; }
+             catch (rangeErr) { Logger.log("Error setting value at row " + sheetRowIndex + ", col " + colIndex + logSuffix + ". Error: " + rangeErr); }
           }
         }
       });
-      // *** CORRECTED > ***
+      // CORRECTED: Use >
       if (updatesMade > 0) Logger.log("Updated row " + sheetRowIndex + logSuffix + " ("+updatesMade+" fields)"); else Logger.log("No changes needed for row " + sheetRowIndex + logSuffix);
 
-    } else { // Append new row
+    } else { // Append
       var newRow = headers.map(header => data.hasOwnProperty(header) ? data[header] : "");
-      try {
-        sheet.appendRow(newRow); Logger.log("Appended new row" + logSuffix);
-        rowIndex = sheet.getLastRow() -1; // Update rowIndex to the new last row (0-based index conceptually) for alert check below
-      } catch (appendErr) { throw new Error("Failed to append row" + logSuffix + ". Error: " + appendErr); }
+      try { sheet.appendRow(newRow); Logger.log("Appended new row" + logSuffix); rowIndex = sheet.getLastRow() -1; }
+      catch (appendErr) { throw new Error("Failed to append row" + logSuffix + ". Error: " + appendErr); }
     }
 
-    // --- Immediate Alert Trigger Logic ---
+    // --- Immediate Alert ---
     var currentStatus = data['Alarm Status'];
     if (currentStatus) {
         var immediateAlertTypes = ['EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN'];
         if (immediateAlertTypes.includes(currentStatus)) {
-             // *** CORRECTED < ***
-             var finalRowIndex = (rowIndex !== -1 && rowIndex < sheet.getLastRow()) ? rowIndex + 1 : sheet.getLastRow(); // Get 1-based index
+             // CORRECTED: Use <
+             var finalRowIndex = (rowIndex !== -1 && rowIndex + 1 < sheet.getLastRow() + 1 ) ? rowIndex + 1 : sheet.getLastRow();
              var updatedRowData = {};
              try {
-                 // *** CORRECTED > ***
-                 if (finalRowIndex > 0) { // Check if index is valid before getting range
+                 // CORRECTED: Use >
+                 if (finalRowIndex > 0) {
                      var updatedRowValues = sheet.getRange(finalRowIndex, 1, 1, headers.length).getValues()[0];
                      headers.forEach((header, j) => { updatedRowData[header] = updatedRowValues[j]; });
-
                      var notes = updatedRowData['Notes'] || "";
-                     var alertAlreadySentMarker = "Immediate alert email sent for " + currentStatus;
-
-                     if (!notes.includes(alertAlreadySentMarker)) {
-                        sendAlertEmail(updatedRowData, currentStatus); // Send email
+                     var marker = "Immediate alert email sent for " + currentStatus;
+                     if (!notes.includes(marker)) {
+                        sendAlertEmail(updatedRowData, currentStatus);
                         var notesColIndex = headers.indexOf("Notes") + 1;
-                         // *** CORRECTED > ***
+                         // CORRECTED: Use >
                          if (notesColIndex > 0) {
-                            var newNote = (notes ? notes + "\\n" : "") + alertAlreadySentMarker + " at " + new Date().toISOString(); // Use \\n for newline
+                            var newNote = (notes ? notes + "\\n" : "") + marker + " at " + new Date().toISOString();
                             sheet.getRange(finalRowIndex, notesColIndex).setValue(newNote);
                         }
-                     } else { Logger.log("Immediate alert email for " + currentStatus + logSuffix + " already sent. Skipping."); }
+                     } else { Logger.log("Immediate alert for " + currentStatus + logSuffix + " already sent. Skipping."); }
                  } else { Logger.log("Invalid finalRowIndex (" + finalRowIndex + ") for immediate alert" + logSuffix); }
-             } catch (fetchErr) { Logger.log("Error fetching updated row data or adding note for immediate alert" + logSuffix + ". Error: " + fetchErr); }
+             } catch (fetchErr) { Logger.log("Error processing immediate alert" + logSuffix + ". Error: " + fetchErr); }
         }
     }
-
 
   } catch (err) {
     Logger.log('FATAL Error in doPost: ' + err.toString() + " Stack: " + (err.stack ? err.stack : '(no stack)'));
@@ -578,7 +521,7 @@ function checkOverdueWorkers() {
     if (!headers || headers.length === 0 || headers.every(h => !h)) { throw new Error("Sheet headers are missing."); }
 
     var dataRange = sheet.getDataRange(); var sheetValues = dataRange.getValues();
-     // *** CORRECTED <= ***
+     // CORRECTED: Use <=
      if (sheetValues.length <= 1) { return; } // No data rows
 
     var now = new Date(); var nowMs = now.getTime();
@@ -592,8 +535,8 @@ function checkOverdueWorkers() {
 
     var updatesMade = 0;
 
-     // *** CORRECTED < ***
-     for (var i = 1; i < sheetValues.length; i++) { // Start from data row 1
+     // CORRECTED: Use <
+     for (var i = 1; i < sheetValues.length; i++) {
       var row = sheetValues[i];
       var status = row[statusColIndex];
       var anticipatedDepartureStr = row[departureColIndex];
@@ -605,12 +548,12 @@ function checkOverdueWorkers() {
        try { anticipatedDeparture = new Date(anticipatedDepartureStr); if (isNaN(anticipatedDeparture)) throw new Error("Invalid date"); }
        catch (dateErr) { Logger.log("Skipping row " + (i+1) + " (Worker: "+workerName+") due to invalid date: " + anticipatedDepartureStr); continue; }
 
-      // *** CORRECTED > ***
+      // CORRECTED: Use >
       if (nowMs > anticipatedDeparture.getTime()) {
         var overdueMinutes = (nowMs - anticipatedDeparture.getTime()) / 60000;
         var nextStatusLevel = null;
 
-        // *** CORRECTED >= ***
+        // CORRECTED: Use >=
         if (overdueMinutes >= 60) { nextStatusLevel = 'ESCALATION_SENT'; }
         else if (overdueMinutes >= 45) { nextStatusLevel = 'EMAIL_3_SENT'; }
         else if (overdueMinutes >= 30) { nextStatusLevel = 'EMAIL_2_SENT'; }
@@ -624,17 +567,17 @@ function checkOverdueWorkers() {
          if (nextStatusLevel && nextStatusLevel.startsWith('EMAIL_')) nextLevelValue = parseInt(nextStatusLevel.split('_')[1]);
          else if (nextStatusLevel === 'ESCALATION_SENT') nextLevelValue = 4;
 
-        // *** CORRECTED > ***
+        // CORRECTED: Use >
         if (nextStatusLevel && nextLevelValue > currentLevelValue) {
             try {
                 var worker = {}; headers.forEach((header, j) => { worker[header] = (j < row.length) ? row[j] : ""; });
                 sheet.getRange(i + 1, statusColIndex + 1).setValue(nextStatusLevel);
                 updatesMade++;
                 sendAlertEmail(worker, nextStatusLevel);
-                // *** CORRECTED >= *** (Also check index validity)
-                if (notesColIndex !== -1 && notesColIndex >= 0) { 
+                // CORRECTED: Use >=
+                if (notesColIndex !== -1 && notesColIndex >= 0) {
                     var currentNotes = row[notesColIndex] || "";
-                    var newNote = (currentNotes ? currentNotes + "\\n" : "") + "Auto email: " + nextStatusLevel + " at " + new Date().toISOString(); // Use \\n
+                    var newNote = (currentNotes ? currentNotes + "\\n" : "") + "Auto email: " + nextStatusLevel + " at " + new Date().toISOString();
                      sheet.getRange(i + 1, notesColIndex + 1).setValue(newNote);
                      updatesMade++;
                 }
@@ -643,7 +586,7 @@ function checkOverdueWorkers() {
         }
       }
     }
-     // *** CORRECTED > ***
+     // CORRECTED: Use >
      if (updatesMade > 0) Logger.log("checkOverdueWorkers finished. Updates made: " + updatesMade);
 
   } catch (err) {
@@ -657,7 +600,7 @@ function checkOverdueWorkers() {
 function sendAlertEmail(workerData, alertType) {
    if (!workerData || !alertType) { Logger.log("sendAlertEmail: Missing data."); return; }
    var workerName = workerData['Worker Name'] || 'Unknown Worker';
-   var recipient; var subjectPrefix = '';
+   var recipient, subjectPrefix = '';
 
    if (alertType === 'ESCALATION_SENT') { recipient = workerData['Escalation Contact Email']; subjectPrefix = 'ESCALATION ALERT: '; }
    else if (['EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN', 'EMAIL_1_SENT', 'EMAIL_2_SENT', 'EMAIL_3_SENT'].includes(alertType)) {
@@ -678,8 +621,8 @@ function sendAlertEmail(workerData, alertType) {
    var locationAddress = workerData['Location Address'] || 'N/A';
    var workerPhone = workerData['Worker Phone Number'] || 'N/A';
    var departureStr = 'N/A'; try { var dep = new Date(workerData['Anticipated Departure Time']); if (!isNaN(dep)) departureStr = dep.toLocaleString(); } catch(e) {}
-   var mapLink = \`http://googleusercontent.com/maps.google.com/7{encodeURIComponent(locationAddress)}\`; // Use https and q parameter
-   if (workerData['Last Known GPS'] && workerData['Last Known GPS'].includes(',')) { mapLink = \`http://googleusercontent.com/maps.google.com/7{workerData['Last Known GPS']}\`; } // Use GPS if available
+   var mapLink = \`https://maps.google.com/?q=\${encodeURIComponent(locationAddress)}\`; // Use https and q parameter
+   if (workerData['Last Known GPS'] && workerData['Last Known GPS'].includes(',')) { mapLink = \`https://maps.google.com/?q=\${workerData['Last Known GPS']}\`; } // Use GPS if available
 
   switch(alertType) {
     case 'EMERGENCY - PANIC BUTTON': subject = 'URGENT PANIC ALERT for ' + workerName; body = '<p><strong>PANIC ALERT from ' + workerName + '.<\/strong><\/p><p>Action emergency procedures immediately.<\/p>'; break;
@@ -695,7 +638,7 @@ function sendAlertEmail(workerData, alertType) {
 `;
 
             // ADMIN GUIDE
-            setText('admin_guide', `
+            window.LWS_TEMPLATES.admin_guide = `
 # Administrator Setup Guide: Lone Worker Safety System
 
 Welcome! This guide explains setting up the LWS system, including hosting apps for free using GitHub Pages. Follow the steps carefully.
@@ -783,10 +726,10 @@ Create final files and put them online.
 * Give **Monitor App URL** to monitor for desktop browser. It should connect automatically.
 
 **Setup Complete!** 🎉
-`);
+`;
 
             // INSTALLER GUIDE
-            setText('installer_guide', `
+            window.LWS_TEMPLATES.installer_guide = `
 # Optional Guide: Creating a Desktop Installer for the Monitor App
 
 Use [**Nativefier**](https://github.com/nativefier/nativefier) to turn the Monitor App website into a simple desktop app.
@@ -794,7 +737,7 @@ Use [**Nativefier**](https://github.com/nativefier/nativefier) to turn the Monit
 ## **Prerequisites**
 
 1.  **Node.js Installed:** Download & install **LTS** from [nodejs.org](https://nodejs.org/).
-2.  **Your Monitor App URL:** (e.g., \`https://YourGitHubUsername.github.io/YourRepo/MonitoringDashboardApp/\`).
+2.  **Your Monitor App URL:** (e.g., \`https://YourUsername.github.io/YourRepo/MonitoringDashboardApp/\`).
 3.  **Command Prompt/Terminal.**
 
 ## **Instructions**
@@ -808,10 +751,10 @@ Use [**Nativefier**](https://github.com/nativefier/nativefier) to turn the Monit
 * \`--platform "windows" | "macos" | "linux"\`
 * \`--icon "C:\\Path\\To\\Icon.ico"\`
 * \`--single-instance\` | \`--always-on-top\` | \`--disable-dev-tools\`
-`);
+`;
 
             // PROMO BLURB
-            setText('promo_blurb', `
+            window.LWS_TEMPLATES.promo_blurb = `
 # Lone Worker Safety System: Free & Self-Hosted
 
 Ensure staff safety with our free, open-source LWS system. Robust monitoring without subscription fees. Host on Google & GitHub Pages for full data control.
@@ -830,18 +773,18 @@ Ensure staff safety with our free, open-source LWS system. Robust monitoring wit
 * Automatic Escalation
 * 100% Free & Self-Hosted
 * Easy Deployment Tool
-`);
+`;
 
              // Manifest Template
-            setText('manifest', `
+            window.LWS_TEMPLATES.manifest = `
 {
     "name": "Lone Worker Safety", "short_name": "LWS App", "start_url": "index.html", "display": "standalone", "background_color": "#111827", "theme_color": "#111827", "orientation": "portrait",
     "icons": [ { "src": "[[LOGO_URL_192]]", "type": "image/png", "sizes": "192x192" }, { "src": "[[LOGO_URL_512]]", "type": "image/png", "sizes": "512x512" } ]
-}`);
+}`;
             // Service Worker Template
-            setText('sw', `
+            window.LWS_TEMPLATES.sw = `
 const CACHE_NAME = 'lws-cache-v1-' + new Date().toISOString(); const urlsToCache = [ './', './index.html', 'https://cdn.tailwindcss.com', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', 'https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js', '[[LOGO_URL]]' ]; self.addEventListener('install', e => { e.waitUntil( caches.open(CACHE_NAME).then(c => c.addAll(urlsToCache).catch(err => console.error('SW Cache AddAll failed:', err))) .then(() => self.skipWaiting()) ); }); self.addEventListener('activate', e => { e.waitUntil( caches.keys().then(keys => Promise.all( keys.map(k => { if (k !== CACHE_NAME && k.startsWith('lws-cache-')) return caches.delete(k); }) )) .then(() => self.clients.claim()) ); }); self.addEventListener('fetch', e => { if (e.request.method !== 'GET') return; e.respondWith( caches.match(e.request).then(res => res || fetch(e.request).then(netRes => { if (netRes.ok) { const clonedRes = netRes.clone(); caches.open(CACHE_NAME).then(c => c.put(e.request, clonedRes)); } return netRes; }).catch(() => { /* Optional offline page */ }) ) ); });
-`);
+`;
 
         } // End of injectTemplates function
     </script>
