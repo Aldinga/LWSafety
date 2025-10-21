@@ -100,9 +100,176 @@
 
     <script>
         // --- Template Storage ---
-        // Global object to hold template content as strings
         window.LWS_TEMPLATES = {
-            worker_app: `
+            worker_app: ``, // Populated by injectTemplates
+            monitor_app: ``, // Populated by injectTemplates
+            apps_script: ``, // Populated by injectTemplates
+            admin_guide: ``, // Populated by injectTemplates
+            installer_guide: ``, // Populated by injectTemplates
+            promo_blurb: ``, // Populated by injectTemplates
+            manifest: ``, // Populated by injectTemplates
+            sw: `` // Populated by injectTemplates
+        };
+
+        const sheetHeaders = ["Date","Worker Name","Worker Phone Number","Emergency Contact Name","Emergency Contact Number","Emergency Contact Email","Escalation Contact Name","Escalation Contact Number","Escalation Contact Email","Location Name","Location Address","Arrival Time","Anticipated Departure Time","Actual Departure Time","Alarm Status","Last Known GPS","GPS Timestamp","Notes"].join("\t");
+
+        // --- Helper function to get template content ---
+        function getTemplateContent(id) {
+            const key = id.replace(/_template$/, '');
+            return window.LWS_TEMPLATES[key] || '';
+        }
+
+        // --- Populate Templates on Load ---
+        window.onload = () => {
+            // Function defined below, populates window.LWS_TEMPLATES
+            injectTemplates(); 
+        };
+        
+        // --- Button Event Listeners ---
+        document.getElementById('copyHeadersBtn').addEventListener('click', () => { 
+            navigator.clipboard.writeText(sheetHeaders)
+                .then(() => alert('Sheet headers copied! Paste into cell A1.'))
+                .catch(err => alert('Failed to copy headers: ' + err)); 
+        });
+
+        // *** CORRECTED copyScriptBtn LOGIC ***
+        document.getElementById('copyScriptBtn').addEventListener('click', () => {
+            const secretKeyInput = document.getElementById('secretKey');
+            const secretKey = secretKeyInput.value.trim();
+
+            if (!secretKey) {
+                alert('Please enter a Secret Key in Step 1 first.');
+                secretKeyInput.focus();
+                return;
+            }
+
+            let scriptContent = getTemplateContent('apps_script'); // Use helper
+            if (!scriptContent) {
+                alert('Error: Apps Script template failed to load. Please reload the page.');
+                return;
+            }
+
+            // Inject the secret key
+            try {
+                const escapedKey = secretKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"'); 
+                scriptContent = scriptContent.replace(
+                    'var SECRET_KEY = "YOUR_SECRET_KEY_HERE";', 
+                    `var SECRET_KEY = "${escapedKey}";`
+                );
+            } catch (e) {
+                alert('Error injecting Secret Key. Please check the key for unusual characters.');
+                console.error("Key injection error:", e);
+                return;
+            }
+            
+            // Attempt to copy using modern clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(scriptContent)
+                    .then(() => {
+                        alert('Apps Script code (with Secret Key) copied! Paste into the Apps Script editor.');
+                    })
+                    .catch(err => {
+                        console.error('Async clipboard write failed:', err);
+                        alert('Failed to copy script automatically. You might need to grant clipboard permission or copy manually from console (if available).');
+                        // Fallback or further error handling could go here
+                    });
+            } else {
+                // Fallback for older browsers (less reliable)
+                try {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = scriptContent;
+                    textArea.style.position = "fixed"; // Avoid scrolling
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    alert('Apps Script code (with Secret Key) copied! Paste into the Apps Script editor.');
+                } catch (err) {
+                    console.error('Fallback clipboard write failed:', err);
+                    alert('Failed to copy script. Please check browser permissions or copy manually.');
+                }
+            }
+        });
+
+        document.getElementById('testConnectionBtn').addEventListener('click', () => { 
+            const url = document.getElementById('scriptUrl').value.trim(); 
+            const key = document.getElementById('secretKey').value.trim(); 
+            const statusEl = document.getElementById('testStatus'); 
+            if (!key) { statusEl.textContent = '❌ Error: Enter Secret Key in Step 1.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; return; } 
+            if (!url) { statusEl.textContent = '❌ Error: URL required.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; return; } 
+            statusEl.textContent = 'Testing...'; statusEl.className = 'ml-3 text-gray-500'; 
+            const cbName = 'jscb_' + Date.now(); 
+            const script = document.createElement('script'); 
+            let timeout; 
+            window[cbName] = (data) => { clearTimeout(timeout); delete window[cbName]; try { document.body.removeChild(script); } catch(e){} if (data.status === 'error' && data.message.includes('Access Denied')) { statusEl.textContent = '❌ Access Denied! Check Key.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; } else if (Array.isArray(data)) { statusEl.textContent = '✅ Success!'; statusEl.className = 'ml-3 text-green-600 font-semibold'; } else { statusEl.textContent = '⚠️ Unexpected data. Check URL/Deployment.'; statusEl.className = 'ml-3 text-yellow-600 font-semibold'; } }; 
+            script.src = url + '?callback=' + cbName + '&token=' + encodeURIComponent(key) + '&t=' + Date.now(); 
+            script.onerror = () => { clearTimeout(timeout); delete window[cbName]; try { document.body.removeChild(script); } catch(e){} statusEl.textContent = '❌ Failed! Check URL/Deployment/CORS.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; }; 
+            document.body.appendChild(script); 
+            timeout = setTimeout(() => { if (window[cbName]) { delete window[cbName]; try { document.body.removeChild(script); } catch(e){} statusEl.textContent = '❌ Timeout! Check URL/Network.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; } }, 15000); 
+        });
+
+        document.getElementById('generateBtn').addEventListener('click', async () => { 
+            const url = document.getElementById('scriptUrl').value.trim(); 
+            const key = document.getElementById('secretKey').value.trim(); 
+            if (!key) { alert("Enter Secret Key in Step 1."); return; } 
+            if (!url) { alert("Enter Web App URL in Step 3."); return; } 
+            const statusText = document.getElementById('testStatus').textContent || ""; 
+            if (!statusText.includes("✅ Success") && !confirm("Connection test failed/not run. Proceed anyway?")) return; 
+            try { 
+                const zip = new JSZip(); 
+                const alertTime = document.getElementById('firstAlert').value; 
+                const checkin = document.getElementById('checkinEnabled').value; 
+                const interval = document.getElementById('checkinInterval').value; 
+                const logo = document.getElementById('companyLogo').value.trim() || 'https://i.postimg.cc/dVmVg3Pn/favicon-logo-for-LWSApp.png'; 
+                
+                // Retrieve content directly from JS variables
+                let workerApp = getTemplateContent('worker_app'); 
+                let monitorApp = getTemplateContent('monitor_app'); 
+                let manifest = getTemplateContent('manifest'); 
+                let sw = getTemplateContent('sw'); 
+                let admin = getTemplateContent('admin_guide'); 
+                let installer = getTemplateContent('installer_guide'); 
+                let promo = getTemplateContent('promo_blurb'); 
+                
+                if (!workerApp || !monitorApp || !manifest || !sw || !admin || !installer || !promo) throw new Error("Template loading failed."); 
+                
+                workerApp = workerApp.replace('const FIRST_ALERT_MINUTES = 15;', \`const FIRST_ALERT_MINUTES = \${alertTime || 15};\`); 
+                workerApp = workerApp.replace('const CHECKIN_ENABLED = false;', \`const CHECKIN_ENABLED = \${checkin || 'false'};\`); 
+                workerApp = workerApp.replace('const CHECKIN_INTERVAL = 30;', \`const CHECKIN_INTERVAL = \${interval || 30};\`); 
+                workerApp = workerApp.replace(/https:\\/\\/i\\.postimg\\.cc\\/dVmVg3Pn\\/favicon-logo-for-LWSApp\\.png/g, logo); 
+                workerApp = workerApp.replace('<link rel="manifest" href="manifest.json">', \`<link rel="canonical" href="?scriptUrl=\${encodeURIComponent(url)}">\\n<link rel="manifest" href="manifest.json">\`); 
+                
+                const workerFolder = zip.folder("LoneWorkerApp"); 
+                workerFolder.file("index.html", workerApp); 
+                manifest = manifest.replace('[[LOGO_URL_192]]', logo); 
+                manifest = manifest.replace('[[LOGO_URL_512]]', logo); 
+                workerFolder.file("manifest.json", manifest); 
+                sw = sw.replace('[[LOGO_URL]]', logo); 
+                workerFolder.file("sw.js", sw); 
+                
+                const escapedKey = key.replace(/\\/g, '\\\\').replace(/"/g, '\\"'); 
+                const loginScript = \`\\n<script>(function(){ const u="\${url}"; const k="\${escapedKey}"; if(u&&k){localStorage.setItem('lwsMonitorUrl',u); localStorage.setItem('lwsMonitorKey',k);}})();<\/script>\\n</body>\`; 
+                monitorApp = monitorApp.replace('</body>', loginScript); 
+                
+                const monitorFolder = zip.folder("MonitoringDashboardApp"); 
+                monitorFolder.file("index.html", monitorApp); 
+                
+                zip.file("Administrator Setup Guide.md", admin); 
+                zip.file("Installer Creation Guide.md", installer); 
+                zip.file("Promotional Blurb.md", promo); 
+                
+                const content = await zip.generateAsync({ type: "blob" }); 
+                saveAs(content, "LWS_Deployment.zip"); 
+            } catch (e) { console.error("Zip Error:", e); alert("Zip generation failed: " + e.message); } 
+        });
+
+
+        // --- Helper function to inject all template content into JS variables ---
+        // *** MODIFIED to store in window.LWS_TEMPLATES ***
+        function injectTemplates() {
+            // WORKER APP
+            window.LWS_TEMPLATES.worker_app = `
 <!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
@@ -322,7 +489,7 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
     function stopAlarm() { if (alarm && alarm.loop && Tone.Transport.state === 'started') { Tone.Transport.stop(); Tone.Transport.cancel(); alarm.loop.dispose(); alarm.loop = null; } alertOverlay.classList.add('hidden'); }
     function fetchData() { if (!sheetUrl || !secretKey) { console.warn("Fetch skipped: URL/Key missing."); return; } statusIndicator.classList.remove('bg-green-500', 'bg-red-500'); statusIndicator.classList.add('bg-yellow-500'); statusIndicator.title = "Fetching..."; const script = document.createElement('script'); const callbackName = 'jscb_' + Date.now(); let scriptTimeout; window[callbackName] = function(data) { clearTimeout(scriptTimeout); delete window[callbackName]; try { document.body.removeChild(script); } catch(e) {} if (data.status === 'error' && data.message.includes('Access Denied')) { console.error("Access Denied."); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Access Denied"; lastUpdatedEl.textContent = 'Denied'; if (isFirstLoad) showAlert("Access Denied", "Incorrect Secret Key. Click settings (⚙️) to reset."); clearInterval(pollingInterval); isFirstLoad = false; navigate('setup'); } else if (Array.isArray(data)) { statusIndicator.classList.remove('bg-yellow-500', 'bg-red-500'); statusIndicator.classList.add('bg-green-500'); statusIndicator.title = "Connected"; lastUpdatedEl.textContent = 'Upd: ' + new Date().toLocaleTimeString(); sizeWarningBanner.classList.toggle('hidden', data.length < 2500); processData(data); isFirstLoad = false; } else { console.error("Bad data:", data); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Data Error"; lastUpdatedEl.textContent = 'Error'; if (isFirstLoad) showAlert("Data Error", "Unexpected data. Check Script logs."); isFirstLoad = false; } }; script.src = sheetUrl + '?callback=' + callbackName + '&token=' + encodeURIComponent(secretKey) + '&t=' + Date.now(); script.onerror = () => { clearTimeout(scriptTimeout); delete window[callbackName]; try { document.body.removeChild(script); } catch(e) {} console.error("Fetch error."); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Connection Failed"; lastUpdatedEl.textContent = 'Failed'; if (isFirstLoad) { showAlert( "Connection Failed", "Check URL, script deployment, & network."); isFirstLoad = false; navigate('setup'); } }; document.body.appendChild(script); scriptTimeout = setTimeout(() => { if (window[callbackName]) { console.error("Fetch timeout."); script.onerror(); } }, 20000); }
     function processData(data) { const active = ["ON SITE", "ALERT SENT", "MISSED_CHECKIN", "EMAIL_1_SENT", "EMAIL_2_SENT", "EMAIL_3_SENT", "EMERGENCY - PANIC BUTTON", "DURESS_CODE_ACTIVATED", "ESCALATION_SENT"]; const workers = data.filter(w => active.includes(w['Alarm Status'])); const prio = { "DURESS_CODE_ACTIVATED": 1, "EMERGENCY - PANIC BUTTON": 2, "ESCALATION_SENT": 3, "MISSED_CHECKIN": 4, "EMAIL_3_SENT": 5, "EMAIL_2_SENT": 6, "EMAIL_1_SENT": 7, "ALERT SENT": 8, "ON SITE": 9 }; workers.sort((a,b) => (prio[a['Alarm Status']] || 99) - (prio[b['Alarm Status']] || 99) || (a['Worker Name'] || '').localeCompare(b['Worker Name'] || '')); renderWorkers(workers); checkForNewAlerts(workers); }
-    function renderWorkers(workers) { workerList.innerHTML = ''; if (workers.length === 0) { workerList.innerHTML = '<div class="text-center text-gray-500 mt-10"><p class="text-xl">No active workers.<\/p><\/div>'; return; } workers.forEach(w => { let bg = 'bg-gray-700', txt = 'text-gray-300', bord = 'border-transparent', flash = ''; switch(w['Alarm Status']) { case 'DURESS_CODE_ACTIVATED': bg = 'bg-purple-800'; txt = 'text-white'; bord = 'border-purple-400'; flash = 'flashing-duress'; break; case 'EMERGENCY - PANIC BUTTON': bg = 'bg-red-700'; txt = 'text-white'; bord = 'border-red-400'; flash = 'flashing-alert'; break; case 'ESCALATION_SENT': case 'EMAIL_3_SENT': case 'EMAIL_2_SENT': case 'EMAIL_1_SENT': case 'ALERT SENT': case 'MISSED_CHECKIN': bg = 'bg-yellow-700'; txt = 'text-white'; bord = 'border-yellow-400'; break; } let timeStr = 'N/A'; try { const dt = new Date(w['Anticipated Departure Time']); if (!isNaN(dt)) timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (e) {} let locLink = ''; let contactInfo = ''; let resolveBtn = ''; const isAlert = w['Alarm Status'] !== 'ON SITE'; if (isAlert) { let url = '#', title = 'No location'; const gps = w['Last Known GPS']; const adr = w['Location Address']; if (gps && gps.includes(',')) { url = \`http://googleusercontent.com/maps.google.com/8{gps}\`; title = 'View GPS'; } else if (adr) { url = \`http://googleusercontent.com/maps.google.com/8{encodeURIComponent(adr)}\`; title = 'View address'; } if(url !== '#') locLink = \`<a href="\${url}" target="_blank" title="\${title}" class="mt-1 inline-flex items-center text-sm text-blue-300 hover:text-blue-200"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>View Location</a>\`; contactInfo = \`<div class="mt-3 pt-2 border-t border-white/20 text-xs space-y-1"><p>W: <a href="tel:\${w['Worker Phone Number']}" class="text-blue-300 hover:text-blue-200">\${w['Worker Phone Number'] || 'N/A'}</a></p><p>EC: \${w['Emergency Contact Name'] || 'N/A'} - <a href="tel:\${w['Emergency Contact Number']}" class="text-blue-300 hover:text-blue-200">\${w['Emergency Contact Number'] || 'N/A'}</a></p></div>\`; resolveBtn = \`<button class="resolve-alert-btn mt-3 w-full bg-green-700 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm" data-name="\${w['Worker Name']}" data-arrival="\${w['Arrival Time']}">Manually Resolve</button>\`; } let batteryIcon = (w.Notes && w.Notes.includes('LOW BATTERY')) ? '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block text-red-400 ml-2 animate-pulse" title="Low Battery"><path d="M11 7h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><path d="M19 12h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M4 12H2.5A1.5 1.5 0 0 0 1 13.5v1A1.5 1.5 0 0 0 2.5 16H4"/></svg>' : ''; const card = document.createElement('div'); card.className = \`p-4 rounded-lg shadow-md \${bg} \${txt} border-2 \${bord} \${flash}\`; card.innerHTML = \`<div class="flex justify-between items-start"><div class="flex-1 min-w-0"><p class="font-bold text-xl truncate">\${w['Worker Name'] || '?'}\${batteryIcon}</p><p class="text-sm truncate">\${w['Location Name'] || '?'}</p>\${locLink}</div><div class="text-right flex-shrink-0 ml-4"><p class="font-semibold text-lg">\${(w['Alarm Status'] || '?').replace(/_/g, ' ')}</p><p class="text-sm">Due: \${timeStr}</p></div></div>\${contactInfo}\${resolveBtn}\`; workerList.appendChild(card); }); }
+    function renderWorkers(workers) { workerList.innerHTML = ''; if (workers.length === 0) { workerList.innerHTML = '<div class="text-center text-gray-500 mt-10"><p class="text-xl">No active workers.<\/p><\/div>'; return; } workers.forEach(w => { let bg = 'bg-gray-700', txt = 'text-gray-300', bord = 'border-transparent', flash = ''; switch(w['Alarm Status']) { case 'DURESS_CODE_ACTIVATED': bg = 'bg-purple-800'; txt = 'text-white'; bord = 'border-purple-400'; flash = 'flashing-duress'; break; case 'EMERGENCY - PANIC BUTTON': bg = 'bg-red-700'; txt = 'text-white'; bord = 'border-red-400'; flash = 'flashing-alert'; break; case 'ESCALATION_SENT': case 'EMAIL_3_SENT': case 'EMAIL_2_SENT': case 'EMAIL_1_SENT': case 'ALERT SENT': case 'MISSED_CHECKIN': bg = 'bg-yellow-700'; txt = 'text-white'; bord = 'border-yellow-400'; break; } let timeStr = 'N/A'; try { const dt = new Date(w['Anticipated Departure Time']); if (!isNaN(dt)) timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (e) {} let locLink = ''; let contactInfo = ''; let resolveBtn = ''; const isAlert = w['Alarm Status'] !== 'ON SITE'; if (isAlert) { let url = '#', title = 'No location'; const gps = w['Last Known GPS']; const adr = w['Location Address']; if (gps && gps.includes(',')) { url = \`http://googleusercontent.com/maps.google.com/9{gps}\`; title = 'View GPS'; } else if (adr) { url = \`http://googleusercontent.com/maps.google.com/9{encodeURIComponent(adr)}\`; title = 'View address'; } if(url !== '#') locLink = \`<a href="\${url}" target="_blank" title="\${title}" class="mt-1 inline-flex items-center text-sm text-blue-300 hover:text-blue-200"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>View Location</a>\`; contactInfo = \`<div class="mt-3 pt-2 border-t border-white/20 text-xs space-y-1"><p>W: <a href="tel:\${w['Worker Phone Number']}" class="text-blue-300 hover:text-blue-200">\${w['Worker Phone Number'] || 'N/A'}</a></p><p>EC: \${w['Emergency Contact Name'] || 'N/A'} - <a href="tel:\${w['Emergency Contact Number']}" class="text-blue-300 hover:text-blue-200">\${w['Emergency Contact Number'] || 'N/A'}</a></p></div>\`; resolveBtn = \`<button class="resolve-alert-btn mt-3 w-full bg-green-700 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm" data-name="\${w['Worker Name']}" data-arrival="\${w['Arrival Time']}">Manually Resolve</button>\`; } let batteryIcon = (w.Notes && w.Notes.includes('LOW BATTERY')) ? '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block text-red-400 ml-2 animate-pulse" title="Low Battery"><path d="M11 7h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><path d="M19 12h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M4 12H2.5A1.5 1.5 0 0 0 1 13.5v1A1.5 1.5 0 0 0 2.5 16H4"/></svg>' : ''; const card = document.createElement('div'); card.className = \`p-4 rounded-lg shadow-md \${bg} \${txt} border-2 \${bord} \${flash}\`; card.innerHTML = \`<div class="flex justify-between items-start"><div class="flex-1 min-w-0"><p class="font-bold text-xl truncate">\${w['Worker Name'] || '?'}\${batteryIcon}</p><p class="text-sm truncate">\${w['Location Name'] || '?'}</p>\${locLink}</div><div class="text-right flex-shrink-0 ml-4"><p class="font-semibold text-lg">\${(w['Alarm Status'] || '?').replace(/_/g, ' ')}</p><p class="text-sm">Due: \${timeStr}</p></div></div>\${contactInfo}\${resolveBtn}\`; workerList.appendChild(card); }); }
     function checkForNewAlerts(workers) { const newS = {}; const crit = ['ALERT SENT', 'EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN']; const upd = ['EMAIL_1_SENT', 'EMAIL_2_SENT', 'EMAIL_3_SENT', 'ESCALATION_SENT']; workers.forEach(w => { const k = w['Worker Name'] + '-' + w['Arrival Time']; const oldS = lastKnownStatuses[k]; const newS_val = w['Alarm Status']; newS[k] = newS_val; if (newS_val !== oldS) { if (crit.includes(newS_val) && !crit.includes(oldS)) playAlarm(w); else if (upd.includes(newS_val) && !upd.includes(oldS)) playUpdateSound(); } }); lastKnownStatuses = newS; }
     function acknowledgeAlert() { stopAlarm(); const arrival = acknowledgeBtn.dataset.arrivalTime; const name = acknowledgeBtn.dataset.workerName; const data = { "Arrival Time": arrival, "Worker Name": name, Notes: 'Alert acknowledged by monitor at ' + new Date().toISOString() }; const fd = new FormData(); for (const k in data) fd.append(k, data[k]); fetch(sheetUrl, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(fd) }).then(() => console.log("Ack note sent.")).catch(e => console.error("Ack note failed:", e)); }
     function sendResolveAlert(name, arrival) { const data = { "Arrival Time": arrival, "Worker Name": name, "Alarm Status": "MONITOR_CLEARED_ALERT", Notes: 'Manually resolved by monitor at ' + new Date().toISOString() }; const fd = new FormData(); for (const k in data) fd.append(k, data[k]); fetch(sheetUrl, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(fd) }).then(() => { hideModals(); fetchData(); }).catch(e => { console.error("Resolve failed:", e); showAlert("Error", "Could not resolve."); }); }
@@ -365,7 +532,6 @@ function doGet(e) {
   try {
       var dataRange = sheet.getDataRange();
       var sheetValues = dataRange.getValues();
-       // CORRECTED: Use <=
        if (sheetValues.length <= 1) { // Only header row or empty
          Logger.log("Sheet empty or only contains headers.");
          return ContentService.createTextOutput((e.parameter.callback || 'callback') + '(' + JSON.stringify([]) + ')') // Use 'callback' if param missing
@@ -376,7 +542,6 @@ function doGet(e) {
       var json = sheetValues.map(function(row) {
         var obj = {};
         headers.forEach(function(header, i) {
-          // CORRECTED: Use <
           obj[header] = (i < row.length) ? row[i] : ""; // Handle short rows
         });
         return obj;
@@ -396,7 +561,7 @@ function doGet(e) {
           .setMimeType(ContentService.MimeType.JAVASCRIPT);
 
    } catch (err) {
-      Logger.log("Error in doGet: " + err.toString() + " Stack: " + err.stack);
+      Logger.log("Error in doGet: " + err.toString() + " Stack: " + (err.stack ? err.stack : 'N/A'));
       var errorCallback = e.parameter.callback || 'callback';
       return ContentService.createTextOutput(errorCallback + '(' + JSON.stringify({ status: "error", message: "Server error during GET" }) + ')')
           .setMimeType(ContentService.MimeType.JAVASCRIPT);
@@ -419,7 +584,6 @@ function doPost(e) {
     if (!sheet) { throw new Error("Active sheet not found."); }
     var headersRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
     var headers = headersRange.getValues()[0];
-     // CORRECTED: Use >
      if (!headers || headers.length === 0 || headers.every(h => !h)) { throw new Error("Sheet headers are missing or empty in row 1."); }
 
     var data = e.parameter;
@@ -433,7 +597,6 @@ function doPost(e) {
     var arrivalTimeIndex = headers.indexOf("Arrival Time"); var workerNameIndex = headers.indexOf("Worker Name");
     if (arrivalTimeIndex === -1 || workerNameIndex === -1) { throw new Error("'Arrival Time' or 'Worker Name' header not found."); }
 
-    // CORRECTED: Use >=
     for (var i = sheetValues.length - 1; i >= 1; i--) {
         var rowArrivalTimeISO = "";
         try { if (sheetValues[i][arrivalTimeIndex]) { rowArrivalTimeISO = new Date(sheetValues[i][arrivalTimeIndex]).toISOString(); } }
@@ -461,7 +624,6 @@ function doPost(e) {
           }
         }
       });
-      // CORRECTED: Use >
       if (updatesMade > 0) Logger.log("Updated row " + sheetRowIndex + logSuffix + " ("+updatesMade+" fields)"); else Logger.log("No changes needed for row " + sheetRowIndex + logSuffix);
 
     } else { // Append
@@ -475,11 +637,9 @@ function doPost(e) {
     if (currentStatus) {
         var immediateAlertTypes = ['EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN'];
         if (immediateAlertTypes.includes(currentStatus)) {
-             // CORRECTED: Use <
-             var finalRowIndex = (rowIndex !== -1 && rowIndex + 1 < sheet.getLastRow() + 1 ) ? rowIndex + 1 : sheet.getLastRow();
+             var finalRowIndex = (rowIndex !== -1 && rowIndex + 1 <= sheet.getLastRow()) ? rowIndex + 1 : sheet.getLastRow();
              var updatedRowData = {};
              try {
-                 // CORRECTED: Use >
                  if (finalRowIndex > 0) {
                      var updatedRowValues = sheet.getRange(finalRowIndex, 1, 1, headers.length).getValues()[0];
                      headers.forEach((header, j) => { updatedRowData[header] = updatedRowValues[j]; });
@@ -488,7 +648,6 @@ function doPost(e) {
                      if (!notes.includes(marker)) {
                         sendAlertEmail(updatedRowData, currentStatus);
                         var notesColIndex = headers.indexOf("Notes") + 1;
-                         // CORRECTED: Use >
                          if (notesColIndex > 0) {
                             var newNote = (notes ? notes + "\\n" : "") + marker + " at " + new Date().toISOString();
                             sheet.getRange(finalRowIndex, notesColIndex).setValue(newNote);
@@ -521,7 +680,6 @@ function checkOverdueWorkers() {
     if (!headers || headers.length === 0 || headers.every(h => !h)) { throw new Error("Sheet headers are missing."); }
 
     var dataRange = sheet.getDataRange(); var sheetValues = dataRange.getValues();
-     // CORRECTED: Use <=
      if (sheetValues.length <= 1) { return; } // No data rows
 
     var now = new Date(); var nowMs = now.getTime();
@@ -535,7 +693,6 @@ function checkOverdueWorkers() {
 
     var updatesMade = 0;
 
-     // CORRECTED: Use <
      for (var i = 1; i < sheetValues.length; i++) {
       var row = sheetValues[i];
       var status = row[statusColIndex];
@@ -548,12 +705,10 @@ function checkOverdueWorkers() {
        try { anticipatedDeparture = new Date(anticipatedDepartureStr); if (isNaN(anticipatedDeparture)) throw new Error("Invalid date"); }
        catch (dateErr) { Logger.log("Skipping row " + (i+1) + " (Worker: "+workerName+") due to invalid date: " + anticipatedDepartureStr); continue; }
 
-      // CORRECTED: Use >
       if (nowMs > anticipatedDeparture.getTime()) {
         var overdueMinutes = (nowMs - anticipatedDeparture.getTime()) / 60000;
         var nextStatusLevel = null;
 
-        // CORRECTED: Use >=
         if (overdueMinutes >= 60) { nextStatusLevel = 'ESCALATION_SENT'; }
         else if (overdueMinutes >= 45) { nextStatusLevel = 'EMAIL_3_SENT'; }
         else if (overdueMinutes >= 30) { nextStatusLevel = 'EMAIL_2_SENT'; }
@@ -567,14 +722,12 @@ function checkOverdueWorkers() {
          if (nextStatusLevel && nextStatusLevel.startsWith('EMAIL_')) nextLevelValue = parseInt(nextStatusLevel.split('_')[1]);
          else if (nextStatusLevel === 'ESCALATION_SENT') nextLevelValue = 4;
 
-        // CORRECTED: Use >
         if (nextStatusLevel && nextLevelValue > currentLevelValue) {
             try {
                 var worker = {}; headers.forEach((header, j) => { worker[header] = (j < row.length) ? row[j] : ""; });
                 sheet.getRange(i + 1, statusColIndex + 1).setValue(nextStatusLevel);
                 updatesMade++;
                 sendAlertEmail(worker, nextStatusLevel);
-                // CORRECTED: Use >=
                 if (notesColIndex !== -1 && notesColIndex >= 0) {
                     var currentNotes = row[notesColIndex] || "";
                     var newNote = (currentNotes ? currentNotes + "\\n" : "") + "Auto email: " + nextStatusLevel + " at " + new Date().toISOString();
@@ -586,7 +739,6 @@ function checkOverdueWorkers() {
         }
       }
     }
-     // CORRECTED: Use >
      if (updatesMade > 0) Logger.log("checkOverdueWorkers finished. Updates made: " + updatesMade);
 
   } catch (err) {
@@ -621,8 +773,8 @@ function sendAlertEmail(workerData, alertType) {
    var locationAddress = workerData['Location Address'] || 'N/A';
    var workerPhone = workerData['Worker Phone Number'] || 'N/A';
    var departureStr = 'N/A'; try { var dep = new Date(workerData['Anticipated Departure Time']); if (!isNaN(dep)) departureStr = dep.toLocaleString(); } catch(e) {}
-   var mapLink = \`https://maps.google.com/?q=\${encodeURIComponent(locationAddress)}\`; // Use https and q parameter
-   if (workerData['Last Known GPS'] && workerData['Last Known GPS'].includes(',')) { mapLink = \`https://maps.google.com/?q=\${workerData['Last Known GPS']}\`; } // Use GPS if available
+   var mapLink = \`https://www.google.com/search?q=https://www.google.com/maps%3Fq%3D0{encodeURIComponent(locationAddress)}\`; // Use https and q parameter
+   if (workerData['Last Known GPS'] && workerData['Last Known GPS'].includes(',')) { mapLink = \`https://www.google.com/search?q=https://www.google.com/maps%3Fq%3D0{workerData['Last Known GPS']}\`; } // Use GPS if available
 
   switch(alertType) {
     case 'EMERGENCY - PANIC BUTTON': subject = 'URGENT PANIC ALERT for ' + workerName; body = '<p><strong>PANIC ALERT from ' + workerName + '.<\/strong><\/p><p>Action emergency procedures immediately.<\/p>'; break;
