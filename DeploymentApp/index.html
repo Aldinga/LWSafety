@@ -111,9 +111,9 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="https://i.postimg.cc/dVmVg3Pn/favicon-logo-for-LWSApp.png">
 <link rel="apple-touch-icon" href="https://i.postimg.cc/dVmVg3Pn/favicon-logo-for-LWSApp.png">
-<scr`+`ipt src="https://cdn.tailwindcss.com"><\/script>
+<scr`+`ipt src="https://cdn.tailwindcss.com"><\/scr`+`ipt>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<scr`+`ipt src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"><\/script>
+<scr`+`ipt src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"><\/scr`+`ipt>
 <style>
 body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
 .page { display: none; opacity: 0; transition: opacity 0.3s ease-in-out; }
@@ -246,7 +246,7 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
     function initEventListeners() { document.body.addEventListener('pointerdown', initAudio, { once: true }); settingsBtn.addEventListener('click', () => { Object.keys(state.settings).forEach(k => { const i = document.getElementById(k); if (i) { i.value = state.settings[k] || ''; i.disabled = (k === 'googleSheetUrl' && i.value); i.classList.toggle('bg-gray-700', i.disabled); i.classList.toggle('text-gray-500', i.disabled); } }); navigate('settings'); }); closeSettingsBtn.addEventListener('click', () => navigate('main')); infoBtn.addEventListener('click', () => showModal('info')); closeInfoModalBtn.addEventListener('click', hideModals); alertModalOkBtn.addEventListener('click', hideModals); checkinOkBtn.addEventListener('click', handleCheckinOK); saveSettingsBtn.addEventListener('click', () => { let urlChanged = false; Object.keys(state.settings).forEach(k => { const i = document.getElementById(k); if (i && !i.disabled) { if(k==='googleSheetUrl' && i.value!==state.settings[k]) urlChanged=true; state.settings[k] = i.value; } }); saveState(); showAlert("OK", "Settings saved."); if (urlChanged) { googleSheetUrl.disabled = true; googleSheetUrl.classList.add('bg-gray-700', 'text-gray-500'); } navigate('main'); }); addLocationBtn.addEventListener('click', () => { showModal('location', () => { locationModalTitle.textContent='Add Location'; locationName.value=''; locationAddress.value=''; deleteLocationBtn.classList.add('hidden'); saveLocationBtn.dataset.id=''; locationName.focus(); }); }); locationList.addEventListener('click', e => { const editBtn = e.target.closest('.edit-location-btn'); if (editBtn) { e.stopPropagation(); const id = editBtn.dataset.id; const loc = state.locations.find(l => l.id === id); if (!loc) return; showModal('location', () => { locationModalTitle.textContent = 'Edit Location'; locationName.value = loc.name; locationAddress.value = loc.address; deleteLocationBtn.classList.toggle('hidden', id==='loc_travelling_default'); saveLocationBtn.dataset.id = id; deleteLocationBtn.dataset.id = id; locationName.focus(); }); } else { const item = e.target.closest('.selectable-item'); if (item) { const btn = item.querySelector('.edit-location-btn'); if(btn){ state.selectedLocationId = btn.dataset.id; if(navigator.vibrate) navigator.vibrate(20); renderLocations(); updateArrivedButtonState(); } } } }); cancelLocationBtn.addEventListener('click', hideModals); saveLocationBtn.addEventListener('click', () => { const id = saveLocationBtn.dataset.id; const name = locationName.value.trim(); const addr = locationAddress.value.trim(); if (!name) { showAlert("Info", "Name needed."); locationName.focus(); return; } if (!addr) { showAlert("Info", "Address needed."); locationAddress.focus(); return; } if (id) { const idx = state.locations.findIndex(l => l.id === id); if(idx > -1) state.locations[idx] = { ...state.locations[idx], name, address: addr }; } else state.locations.push({ id: \`loc_\${Date.now()}\`, name, address: addr }); saveState(); renderLocations(); hideModals(); }); deleteLocationBtn.addEventListener('click', e => { const id = e.target.dataset.id; if (id === 'loc_travelling_default') return; state.locations = state.locations.filter(l => l.id !== id); if (state.selectedLocationId === id) { state.selectedLocationId = null; updateArrivedButtonState(); } saveState(); renderLocations(); hideModals(); }); useCurrentLocationBtn.addEventListener('click', () => { if (!navigator.geolocation) { showAlert("Not Supported", "Geolocation needed."); return; } useCurrentLocationBtn.textContent = "Getting..."; useCurrentLocationBtn.disabled = true; navigator.geolocation.getCurrentPosition( p => { fetch(\`https://nominatim.openstreetmap.org/reverse?format=json&lat=\${p.coords.latitude}&lon=\${p.coords.longitude}\`).then(r => r.ok ? r.json() : Promise.reject(\`HTTP \${r.status}\`)).then(d => { locationAddress.value = d.display_name || \`\${p.coords.latitude.toFixed(6)}, \${p.coords.longitude.toFixed(6)}\`; }).catch(e => { locationAddress.value = \`\${p.coords.latitude.toFixed(6)}, \${p.coords.longitude.toFixed(6)}\`; }).finally(() => { useCurrentLocationBtn.textContent = "Use Current Location"; useCurrentLocationBtn.disabled = false; }); }, e => { showAlert("Location Error", \`\${e.message}\`); useCurrentLocationBtn.textContent = "Use Current Location"; useCurrentLocationBtn.disabled = false; }, { enableHighAccuracy: true, timeout: 15000 }); }); durationSlider.addEventListener('input', e => { state.visitDurationMinutes = DURATION_STEPS[+e.target.value]; durationDisplay.textContent = formatDuration(state.visitDurationMinutes); updateArrivedButtonState(); }); let tapCount = 0; let tapTimer = null; panicBtn.addEventListener('click', () => { tapCount++; if(tapCount===1) tapTimer = setTimeout(()=>tapCount=0, 1500); if (tapCount>=3) { clearTimeout(tapTimer); tapCount=0; triggerPanicAlert(); } }); const applyLongPress = (el, cb, dur=1500) => { let T, sX, sY; const tol=15; const start = e => { if (el.disabled) return; e.preventDefault(); if (e.touches?.[0]) { sX=e.touches[0].clientX; sY=e.touches[0].clientY; } else if(e.clientX!==undefined){ sX=e.clientX; sY=e.clientY; } else sX=null; el.classList.add('pressing'); T = setTimeout(() => { if(T) cb(); clearTimeout(T); T=null; el.classList.remove('pressing'); }, dur); }; const cancel = () => { clearTimeout(T); T=null; el.classList.remove('pressing'); }; const move = e => { if (T && sX!==null) { let cX, cY; if(e.touches?.[0]){ cX=e.touches[0].clientX; cY=e.touches[0].clientY; } else if(e.clientX!==undefined){ cX=e.clientX; cY=e.clientY; } else return; if(Math.abs(cX-sX)>tol || Math.abs(cY-sY)>tol) cancel(); } }; el.addEventListener('mousedown', start); el.addEventListener('mouseup', cancel); el.addEventListener('mouseleave', cancel); el.addEventListener('mousemove', move); el.addEventListener('touchstart', start,{passive:false}); el.addEventListener('touchend', cancel); el.addEventListener('touchcancel', cancel); el.addEventListener('touchmove', move,{passive:false}); }; applyLongPress(arrivedBtn, handleArriveLongPress); applyLongPress(departBtn, handleDepartLongPress); applyLongPress(extendBtn, handleExtendLongPress); applyLongPress(iamSafeBtn, handleSafeLongPress); }
     function init() { pages={main:document.getElementById('mainPage'),locked:document.getElementById('lockedPage'),settings:document.getElementById('settingsPage')}; modals={backdrop:document.getElementById('modalBackdrop'),location:document.getElementById('locationModal'),info:document.getElementById('infoModal'),pin:document.getElementById('pinModal'),alert:document.getElementById('alertModal'),checkin:document.getElementById('checkinModal')}; locationList=document.getElementById('locationList'); arrivedBtn=document.getElementById('arrivedBtn'); durationSlider=document.getElementById('durationSlider'); durationDisplay=document.getElementById('durationDisplay'); infoBtn=document.getElementById('infoBtn'); settingsBtn=document.getElementById('settingsBtn'); closeSettingsBtn=document.getElementById('closeSettingsBtn'); addLocationBtn=document.getElementById('addLocationBtn'); saveSettingsBtn=document.getElementById('saveSettingsBtn'); closeInfoModalBtn=document.getElementById('closeInfoModalBtn'); cancelLocationBtn=document.getElementById('cancelLocationBtn'); saveLocationBtn=document.getElementById('saveLocationBtn'); deleteLocationBtn=document.getElementById('deleteLocationBtn'); useCurrentLocationBtn=document.getElementById('useCurrentLocationBtn'); panicBtn=document.getElementById('panicBtn'); iamSafeBtn=document.getElementById('iamSafeBtn'); departBtn=document.getElementById('departBtn'); extendBtn=document.getElementById('extendBtn'); alertModalOkBtn=document.getElementById('alertModalOkBtn'); checkinOkBtn=document.getElementById('checkinOkBtn'); pinInput=document.getElementById('pinInput'); confirmPinBtn=document.getElementById('confirmPinBtn'); cancelPinBtn=document.getElementById('cancelPinBtn'); checkinCountdown=document.getElementById('checkinCountdown'); countdownTimer=document.getElementById('countdownTimer'); lockedAnticipatedTime=document.getElementById('lockedAnticipatedTime'); alertActiveContainer=document.getElementById('alertActiveContainer'); normalButtonsContainer=document.getElementById('normalButtonsContainer'); locationModalTitle=document.getElementById('locationModalTitle'); locationName=document.getElementById('locationName'); locationAddress=document.getElementById('locationAddress'); googleSheetUrl=document.getElementById('googleSheetUrl'); if('serviceWorker' in navigator)window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').then(r=>console.log('SW ok')).catch(e=>console.log('SW fail:',e))}); loadState(); if (state.activeVisit) enterLockedScreen(); else { navigate('main'); renderLocations(); updateArrivedButtonState(); } initEventListeners(); Object.keys(pages).forEach(k=>{if(pages[k]&&!pages[k].classList.contains('active'))pages[k].classList.add('hidden','opacity-0')}); }
     document.addEventListener('DOMContentLoaded', init);
-<\/scr`+`ipt>
+<\/scr` + `ipt>
 <\/body>
 <\/html>
 `,
@@ -256,7 +256,7 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
 <!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
-    <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>LWS Monitor</title> <scr`+`ipt src="https://cdn.tailwindcss.com"><\/script> <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"> <scr`+`ipt src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"><\/script> <style> body { font-family: 'Inter', sans-serif; } @keyframes flash-red { 0%, 100% { background-color: #991b1b; } 50% { background-color: #ef4444; } } @keyframes flash-purple { 0%, 100% { background-color: #5b21b6; } 50% { background-color: #a78bfa; } } .flashing-alert { animation: flash-red 1s infinite; } .flashing-duress { animation: flash-purple 1s infinite; } <\/style>
+    <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>LWS Monitor</title> <scr` + `ipt src="https://cdn.tailwindcss.com"><\/scr` + `ipt> <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"> <scr` + `ipt src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"><\/scr` + `ipt> <style> body { font-family: 'Inter', sans-serif; } @keyframes flash-red { 0%, 100% { background-color: #991b1b; } 50% { background-color: #ef4444; } } @keyframes flash-purple { 0%, 100% { background-color: #5b21b6; } 50% { background-color: #a78bfa; } } .flashing-alert { animation: flash-red 1s infinite; } .flashing-duress { animation: flash-purple 1s infinite; } <\/style>
 <\/head>
 <body class="bg-gray-800 text-white h-full overflow-hidden">
 <div id="setupPage" class="h-full flex items-center justify-center p-4 bg-gray-900">
@@ -323,7 +323,7 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
     function initEventListeners() { document.body.addEventListener('pointerdown', initAudio, { once: true }); saveUrlBtn.addEventListener('click', () => { const url = googleSheetUrlInput.value.trim(); const key = secretKeyInput.value.trim(); if (url && key) { localStorage.setItem('lwsMonitorUrl', url); localStorage.setItem('lwsMonitorKey', key); sheetUrl = url; secretKey = key; navigate('dashboard'); stopAlarm(); lastKnownStatuses = {}; isFirstLoad = true; fetchData(); if (pollingInterval) clearInterval(pollingInterval); pollingInterval = setInterval(fetchData, 15000); } else showAlert("Missing Info", "URL and Key required."); }); resetUrlBtn.addEventListener('click', () => { if (confirm("Change connection settings?")) { if (pollingInterval) clearInterval(pollingInterval); pollingInterval = null; stopAlarm(); workerList.innerHTML = ''; lastKnownStatuses = {}; statusIndicator.className = 'h-3 w-3 rounded-full bg-gray-500'; statusIndicator.title = "Disconnected"; lastUpdatedEl.textContent = ''; navigate('setup'); } }); acknowledgeBtn.addEventListener('click', acknowledgeAlert); closeWarningBtn.addEventListener('click', () => sizeWarningBanner.classList.add('hidden')); alertModalOkBtn.addEventListener('click', hideModals); workerList.addEventListener('click', (e) => { const btn = e.target.closest('.resolve-alert-btn'); if (btn) { const name = btn.dataset.name; const arrival = btn.dataset.arrival; if (!name || !arrival) return; showModal(resolveModal, () => { resolveWorkerName.textContent = name; resolveConfirmInput.value = ''; resolveConfirmInput.placeholder = \`Type '\${name}'\`; confirmResolveBtn.dataset.name = name; confirmResolveBtn.dataset.arrival = arrival; resolveConfirmInput.focus(); }); } }); cancelResolveBtn.addEventListener('click', hideModals); confirmResolveBtn.addEventListener('click', () => { const name = confirmResolveBtn.dataset.name; const arrival = confirmResolveBtn.dataset.arrival; const typed = resolveConfirmInput.value; if (typed.trim().toLowerCase() === name.trim().toLowerCase()) { sendResolveAlert(name, arrival); } else { resolveConfirmInput.classList.add('border-red-500'); resolveConfirmInput.value = ''; setTimeout(() => resolveConfirmInput.classList.remove('border-red-500'), 1500); } }); resolveConfirmInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); confirmResolveBtn.click(); } }); }
     function init() { setupPage=document.getElementById('setupPage'); dashboardPage=document.getElementById('dashboardPage'); googleSheetUrlInput=document.getElementById('googleSheetUrl'); secretKeyInput=document.getElementById('secretKey'); saveUrlBtn=document.getElementById('saveUrlBtn'); resetUrlBtn=document.getElementById('resetUrlBtn'); workerList=document.getElementById('workerList'); statusIndicator=document.getElementById('statusIndicator'); lastUpdatedEl=document.getElementById('lastUpdated'); alertOverlay=document.getElementById('alertOverlay'); alertDetails=document.getElementById('alertDetails'); acknowledgeBtn=document.getElementById('acknowledgeBtn'); modalBackdrop=document.getElementById('modalBackdrop'); alertModal=document.getElementById('alertModal'); alertModalTitle=document.getElementById('alertModalTitle'); alertModalMessage=document.getElementById('alertModalMessage'); alertModalOkBtn=document.getElementById('alertModalOkBtn'); sizeWarningBanner=document.getElementById('sizeWarningBanner'); closeWarningBtn=document.getElementById('closeWarningBtn'); resolveModal=document.getElementById('resolveModal'); resolveWorkerName=document.getElementById('resolveWorkerName'); resolveConfirmInput=document.getElementById('resolveConfirmInput'); cancelResolveBtn=document.getElementById('cancelResolveBtn'); confirmResolveBtn=document.getElementById('confirmResolveBtn'); sheetUrl = localStorage.getItem('lwsMonitorUrl'); secretKey = localStorage.getItem('lwsMonitorKey'); initEventListeners(); if (sheetUrl && secretKey) { navigate('dashboard'); fetchData(); if (pollingInterval) clearInterval(pollingInterval); pollingInterval = setInterval(fetchData, 15000); } else navigate('setup'); }
     document.addEventListener('DOMContentLoaded', init);
-<\/scr`+`ipt>
+<\/scr` + `ipt>
 <\/body>
 <\/html>
 `,
@@ -350,7 +350,7 @@ var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
 function doGet(e) {
   var token = e.parameter.token;
   if (token !== SECRET_KEY) {
-    Logger.log("Access Denied in doGet. Provided token: " + (token ? token.substring(0, 5) + '...' : 'null')); // Log prefix only
+    Logger.log("Access Denied in doGet. Provided token: " + (token ? token.substring(0, 5) + '...' : 'null'));
     return ContentService
       .createTextOutput(JSON.stringify({ status: "error", message: "Access Denied" }))
       .setMimeType(ContentService.MimeType.JAVASCRIPT);
@@ -359,17 +359,17 @@ function doGet(e) {
   try {
       var dataRange = sheet.getDataRange();
       var sheetValues = dataRange.getValues();
-       if (sheetValues.length <= 1) { // Only header row or empty
+       if (sheetValues.length <= 1) {
          Logger.log("Sheet empty or only contains headers.");
-         return ContentService.createTextOutput((e.parameter.callback || 'callback') + '(' + JSON.stringify([]) + ')') // Use 'callback' if param missing
+         return ContentService.createTextOutput((e.parameter.callback || 'callback') + '(' + JSON.stringify([]) + ')')
            .setMimeType(ContentService.MimeType.JAVASCRIPT);
        }
-      var headers = sheetValues.shift(); // Get headers (first row)
+      var headers = sheetValues.shift();
 
       var json = sheetValues.map(function(row) {
         var obj = {};
         headers.forEach(function(header, i) {
-          obj[header] = (i < row.length) ? row[i] : ""; // Handle short rows
+          obj[header] = (i < row.length) ? row[i] : "";
         });
         return obj;
       });
@@ -761,47 +761,39 @@ Ensure staff safety with our free, open-source LWS system. Robust monitoring wit
             sw: `const CACHE_NAME='lws-cache-v1-'+new Date().toISOString();const urlsToCache=['./','./index.html','https://cdn.tailwindcss.com','https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap','https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js','[[LOGO_URL]]'];self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(urlsToCache).catch(err=>console.error('SW Cache AddAll failed:',err))).then(()=>self.skipWaiting()))});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.map(k=>{if(k!==CACHE_NAME&&k.startsWith('lws-cache-'))return caches.delete(k)}))).then(()=>self.clients.claim()))});self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(caches.match(e.request).then(res=>res||fetch(e.request).then(netRes=>{if(netRes.ok){const clonedRes=netRes.clone();caches.open(CACHE_NAME).then(c=>c.put(e.request,clonedRes))}return netRes}).catch(()=>{/* Optional offline */}) ))});`
         }; // End of LWS_TEMPLATES object
 
+        
         // *** THIS IS THE RELIABLE CLIPBOARD FUNCTION ***
         function copyTextToClipboard(text, successMessage) {
-            // Create a temporary textarea element
-            const textArea = document.createElement("textarea");
-            textArea.value = text;
-            
-            // Make it invisible
-            textArea.style.position = "fixed";
-            textArea.style.top = "-9999px";
-            textArea.style.left = "-9999px";
-            textArea.style.opacity = "0";
-            
-            document.body.appendChild(textArea);
-            
-            textArea.focus();
-            textArea.select();
-            
-            let success = false;
-            try {
-                // Use the old, reliable command
-                success = document.execCommand('copy');
-            } catch (err) {
-                console.error("Copy failed (execCommand):", err);
-            }
-            
-            document.body.removeChild(textArea);
-            
-            // Give feedback
-            if (success) {
-                alert(successMessage);
+            // Use modern clipboard API if available (best for https)
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert(successMessage);
+                }).catch(err => {
+                    console.error("Async clipboard copy failed:", err);
+                    alert("Copy failed! Your browser might have blocked it. Please try again or grant permission.");
+                });
             } else {
-                // Fallback attempt (which you said failed, but is good practice to keep)
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(text).then(() => {
-                        alert(successMessage);
-                    }).catch(err => {
-                        alert("Copy failed! Your browser might be blocking it. Please try again.");
-                        console.error("Async clipboard write failed:", err);
-                    });
+                // Fallback for non-secure contexts or older browsers
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed"; 
+                textArea.style.top = "-9999px";
+                textArea.style.left = "-9999px";
+                textArea.style.opacity = "0";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                let success = false;
+                try {
+                    success = document.execCommand('copy');
+                } catch (err) {
+                    console.error("Fallback copy failed:", err);
+                }
+                document.body.removeChild(textArea);
+                if (success) {
+                    alert(successMessage);
                 } else {
-                     alert("Copy failed! Your browser seems to block clipboard access.");
+                    alert("Copy failed! Your browser is preventing automatic copy. Please try again.");
                 }
             }
         }
@@ -809,7 +801,7 @@ Ensure staff safety with our free, open-source LWS system. Robust monitoring wit
         // --- Main Event Listeners (DOM Ready) ---
         document.addEventListener('DOMContentLoaded', () => {
 
-            // This function runs on page load, populating the JS variables
+            // Populate the template variables
             injectTemplates();
 
             document.getElementById('copyHeadersBtn').addEventListener('click', () => { 
@@ -827,7 +819,7 @@ Ensure staff safety with our free, open-source LWS system. Robust monitoring wit
                 }
 
                 let scriptContent = getTemplateContent('apps_script');
-                if (!scriptContent || scriptContent.length < 50) {
+                if (!scriptContent || scriptContent.length < 50) { 
                     alert('Error: Apps Script template failed to load. Please reload the page.');
                     console.error("apps_script template is empty or missing:", scriptContent);
                     return;
@@ -839,7 +831,6 @@ Ensure staff safety with our free, open-source LWS system. Robust monitoring wit
                     `var SECRET_KEY = "${escapedKey}";`
                 );
                 
-                // Use the reliable copy function
                 copyTextToClipboard(scriptContent, "Apps Script code (with Secret Key) copied! Paste into the Apps Script editor.");
             });
 
