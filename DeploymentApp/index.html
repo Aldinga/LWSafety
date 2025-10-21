@@ -317,7 +317,7 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
     function stopAlarm() { if (alarm && alarm.loop && Tone.Transport.state === 'started') { Tone.Transport.stop(); Tone.Transport.cancel(); alarm.loop.dispose(); alarm.loop = null; } alertOverlay.classList.add('hidden'); }
     function fetchData() { if (!sheetUrl || !secretKey) { console.warn("Fetch skipped: URL/Key missing."); return; } statusIndicator.classList.remove('bg-green-500', 'bg-red-500'); statusIndicator.classList.add('bg-yellow-500'); statusIndicator.title = "Fetching..."; const script = document.createElement('script'); const callbackName = 'jscb_' + Date.now(); let scriptTimeout; window[callbackName] = function(data) { clearTimeout(scriptTimeout); delete window[callbackName]; try { document.body.removeChild(script); } catch(e) {} if (data.status === 'error' && data.message.includes('Access Denied')) { console.error("Access Denied."); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Access Denied"; lastUpdatedEl.textContent = 'Denied'; if (isFirstLoad) showAlert("Access Denied", "Incorrect Secret Key. Click settings (⚙️) to reset."); clearInterval(pollingInterval); isFirstLoad = false; navigate('setup'); } else if (Array.isArray(data)) { statusIndicator.classList.remove('bg-yellow-500', 'bg-red-500'); statusIndicator.classList.add('bg-green-500'); statusIndicator.title = "Connected"; lastUpdatedEl.textContent = 'Upd: ' + new Date().toLocaleTimeString(); sizeWarningBanner.classList.toggle('hidden', data.length < 2500); processData(data); isFirstLoad = false; } else { console.error("Bad data:", data); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Data Error"; lastUpdatedEl.textContent = 'Error'; if (isFirstLoad) showAlert("Data Error", "Unexpected data. Check Script logs."); isFirstLoad = false; } }; script.src = sheetUrl + '?callback=' + callbackName + '&token=' + encodeURIComponent(secretKey) + '&t=' + Date.now(); script.onerror = () => { clearTimeout(scriptTimeout); delete window[callbackName]; try { document.body.removeChild(script); } catch(e) {} console.error("Fetch error."); statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500'); statusIndicator.title = "Connection Failed"; lastUpdatedEl.textContent = 'Failed'; if (isFirstLoad) { showAlert( "Connection Failed", "Check URL, script deployment, & network."); isFirstLoad = false; navigate('setup'); } }; document.body.appendChild(script); scriptTimeout = setTimeout(() => { if (window[callbackName]) { console.error("Fetch timeout."); script.onerror(); } }, 20000); }
     function processData(data) { const active = ["ON SITE", "ALERT SENT", "MISSED_CHECKIN", "EMAIL_1_SENT", "EMAIL_2_SENT", "EMAIL_3_SENT", "EMERGENCY - PANIC BUTTON", "DURESS_CODE_ACTIVATED", "ESCALATION_SENT"]; const workers = data.filter(w => active.includes(w['Alarm Status'])); const prio = { "DURESS_CODE_ACTIVATED": 1, "EMERGENCY - PANIC BUTTON": 2, "ESCALATION_SENT": 3, "MISSED_CHECKIN": 4, "EMAIL_3_SENT": 5, "EMAIL_2_SENT": 6, "EMAIL_1_SENT": 7, "ALERT SENT": 8, "ON SITE": 9 }; workers.sort((a,b) => (prio[a['Alarm Status']] || 99) - (prio[b['Alarm Status']] || 99) || (a['Worker Name'] || '').localeCompare(b['Worker Name'] || '')); renderWorkers(workers); checkForNewAlerts(workers); }
-    function renderWorkers(workers) { workerList.innerHTML = ''; if (workers.length === 0) { workerList.innerHTML = '<div class="text-center text-gray-500 mt-10"><p class="text-xl">No active workers.<\/p><\/div>'; return; } workers.forEach(w => { let bg = 'bg-gray-700', txt = 'text-gray-300', bord = 'border-transparent', flash = ''; switch(w['Alarm Status']) { case 'DURESS_CODE_ACTIVATED': bg = 'bg-purple-800'; txt = 'text-white'; bord = 'border-purple-400'; flash = 'flashing-duress'; break; case 'EMERGENCY - PANIC BUTTON': bg = 'bg-red-700'; txt = 'text-white'; bord = 'border-red-400'; flash = 'flashing-alert'; break; case 'ESCALATION_SENT': case 'EMAIL_3_SENT': case 'EMAIL_2_SENT': case 'EMAIL_1_SENT': case 'ALERT SENT': case 'MISSED_CHECKIN': bg = 'bg-yellow-700'; txt = 'text-white'; bord = 'border-yellow-400'; break; } let timeStr = 'N/A'; try { const dt = new Date(w['Anticipated Departure Time']); if (!isNaN(dt)) timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (e) {} let locLink = ''; let contactInfo = ''; let resolveBtn = ''; const isAlert = w['Alarm Status'] !== 'ON SITE'; if (isAlert) { let url = '#', title = 'No location'; const gps = w['Last Known GPS']; const adr = w['Location Address']; if (gps && gps.includes(',')) { url = \`https://www.google.com/maps/search/?api=1&query=\${gps}\`; title = 'View GPS'; } else if (adr) { url = \`https://www.google.com/maps/search/?api=1&query=\${encodeURIComponent(adr)}\`; title = 'View address'; } if(url !== '#') locLink = \`<a href="\${url}" target="_blank" title="\${title}" class="mt-1 inline-flex items-center text-sm text-blue-300 hover:text-blue-200"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>View Location</a>\`; contactInfo = \`<div class="mt-3 pt-2 border-t border-white/20 text-xs space-y-1"><p>W: <a href="tel:\${w['Worker Phone Number']}" class="text-blue-300 hover:text-blue-200">\${w['Worker Phone Number'] || 'N/A'}</a></p><p>EC: \${w['Emergency Contact Name'] || 'N/A'} - <a href="tel:\${w['Emergency Contact Number']}" class="text-blue-300 hover:text-blue-200">\${w['Emergency Contact Number'] || 'N/A'}</a></p></div>\`; resolveBtn = \`<button class="resolve-alert-btn mt-3 w-full bg-green-700 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm" data-name="\${w['Worker Name']}" data-arrival="\${w['Arrival Time']}">Manually Resolve</button>\`; } let batteryIcon = (w.Notes && w.Notes.includes('LOW BATTERY')) ? '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block text-red-400 ml-2 animate-pulse" title="Low Battery"><path d="M11 7h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><path d="M19 12h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M4 12H2.5A1.5 1.5 0 0 0 1 13.5v1A1.5 1.5 0 0 0 2.5 16H4"/></svg>' : ''; const card = document.createElement('div'); card.className = \`p-4 rounded-lg shadow-md \${bg} \${txt} border-2 \${bord} \${flash}\`; card.innerHTML = \`<div class="flex justify-between items-start"><div class="flex-1 min-w-0"><p class="font-bold text-xl truncate">\${w['Worker Name'] || '?'}\${batteryIcon}</p><p class="text-sm truncate">\${w['Location Name'] || '?'}</p>\${locLink}</div><div class="text-right flex-shrink-0 ml-4"><p class="font-semibold text-lg">\${(w['Alarm Status'] || '?').replace(/_/g, ' ')}</p><p class="text-sm">Due: \${timeStr}</p></div></div>\${contactInfo}\${resolveBtn}\`; workerList.appendChild(card); }); }
+    function renderWorkers(workers) { workerList.innerHTML = ''; if (workers.length === 0) { workerList.innerHTML = '<div class="text-center text-gray-500 mt-10"><p class="text-xl">No active workers.<\/p><\/div>'; return; } workers.forEach(w => { let bg = 'bg-gray-700', txt = 'text-gray-300', bord = 'border-transparent', flash = ''; switch(w['Alarm Status']) { case 'DURESS_CODE_ACTIVATED': bg = 'bg-purple-800'; txt = 'text-white'; bord = 'border-purple-400'; flash = 'flashing-duress'; break; case 'EMERGENCY - PANIC BUTTON': bg = 'bg-red-700'; txt = 'text-white'; bord = 'border-red-400'; flash = 'flashing-alert'; break; case 'ESCALATION_SENT': case 'EMAIL_3_SENT': case 'EMAIL_2_SENT': case 'EMAIL_1_SENT': case 'ALERT SENT': case 'MISSED_CHECKIN': bg = 'bg-yellow-700'; txt = 'text-white'; bord = 'border-yellow-400'; break; } let timeStr = 'N/A'; try { const dt = new Date(w['Anticipated Departure Time']); if (!isNaN(dt)) timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (e) {} let locLink = ''; let contactInfo = ''; let resolveBtn = ''; const isAlert = w['Alarm Status'] !== 'ON SITE'; if (isAlert) { let url = '#', title = 'No location'; const gps = w['Last Known GPS']; const adr = w['Location Address']; if (gps && gps.includes(',')) { url = \`https://www.google.com/maps/search/?api=1&query=\${gps}\`; title = 'View GPS'; } else if (adr) { url = \`https://www.google.com/maps/search/?api=1&query=\${encodeURIComponent(adr)}\`; title = 'View address'; } if(url !== '#') locLink = \`<a href="\${url}" target="_blank" title="\${title}" class="mt-1 inline-flex items-center text-sm text-blue-300 hover:text-blue-200"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>View Location</a>\`; contactInfo = \`<div class="mt-3 pt-2 border-t border-white/20 text-xs space-y-1"><p>W: <a href="tel:\${w['Worker Phone Number']}" class="text-blue-300 hover:text-blue-200">\${w['Worker Phone Number'] || 'N/A'}</a></p><p>EC: \${w['Emergency Contact Name'] || 'N/A'} - <a href="tel:\${w['Emergency Contact Number']}" class="text-blue-300 hover:text-blue-200">\${w['Emergency Contact Number'] || 'N/A'}</a></p></div>\`; resolveBtn = \`<button class="resolve-alert-btn mt-3 w-full bg-green-700 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm" data-name="\${w['Worker Name']}" data-arrival="\${w['Arrival Time']}">Manually Resolve</button>\`; } let batteryIcon = (w.Notes && (w.Notes.includes('LOW BATTERY') || w.Notes.includes('LOW BATT'))) ? '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block text-red-400 ml-2 animate-pulse" title="Low Battery"><path d="M11 7h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><path d="M19 12h1.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H19"/><path d="M4 12H2.5A1.5 1.5 0 0 0 1 13.5v1A1.5 1.5 0 0 0 2.5 16H4"/></svg>' : ''; const card = document.createElement('div'); card.className = \`p-4 rounded-lg shadow-md \${bg} \${txt} border-2 \${bord} \${flash}\`; card.innerHTML = \`<div class="flex justify-between items-start"><div class="flex-1 min-w-0"><p class="font-bold text-xl truncate">\${w['Worker Name'] || '?'}\${batteryIcon}</p><p class="text-sm truncate">\${w['Location Name'] || '?'}</p>\${locLink}</div><div class="text-right flex-shrink-0 ml-4"><p class="font-semibold text-lg">\${(w['Alarm Status'] || '?').replace(/_/g, ' ')}</p><p class="text-sm">Due: \${timeStr}</p></div></div>\${contactInfo}\${resolveBtn}\`; workerList.appendChild(card); }); }
     function checkForNewAlerts(workers) { const newS = {}; const crit = ['ALERT SENT', 'EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN']; const upd = ['EMAIL_1_SENT', 'EMAIL_2_SENT', 'EMAIL_3_SENT', 'ESCALATION_SENT']; workers.forEach(w => { const k = (w['Worker Name'] || 'unknown') + '-' + w['Arrival Time']; const oldS = lastKnownStatuses[k]; const newS_val = w['Alarm Status']; newS[k] = newS_val; if (newS_val !== oldS) { if (crit.includes(newS_val) && !crit.includes(oldS)) playAlarm(w); else if (upd.includes(newS_val) && !upd.includes(oldS)) playUpdateSound(); } }); lastKnownStatuses = newS; }
     function acknowledgeAlert() { stopAlarm(); const arrival = acknowledgeBtn.dataset.arrivalTime; const name = acknowledgeBtn.dataset.workerName; const data = { "Arrival Time": arrival, "Worker Name": name, Notes: 'Alert acknowledged by monitor at ' + new Date().toISOString() }; const fd = new FormData(); for (const k in data) fd.append(k, data[k]); fetch(sheetUrl, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(fd) }).then(() => console.log("Ack note sent.")).catch(e => console.error("Ack note failed:", e)); }
     function sendResolveAlert(name, arrival) { const data = { "Arrival Time": arrival, "Worker Name": name, "Alarm Status": "MONITOR_CLEARED_ALERT", Notes: 'Manually resolved by monitor at ' + new Date().toISOString() }; const fd = new FormData(); for (const k in data) fd.append(k, data[k]); fetch(sheetUrl, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(fd) }).then(() => { hideModals(); fetchData(); }).catch(e => { console.error("Resolve failed:", e); showAlert("Error", "Could not resolve."); }); }
@@ -327,10 +327,10 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
 <\/script>
 <\/body>
 <\/html>
-`;
+`,
 
             // APPS SCRIPT
-            window.LWS_TEMPLATES.apps_script = `
+            apps_script: `
 // ##### --------------------------------------------------- #####
 // ##### Lone Worker Safety System - Google Apps Script Backend #####
 // ##### --------------------------------------------------- #####
@@ -615,10 +615,10 @@ function sendAlertEmail(workerData, alertType) {
     try { MailApp.sendEmail({ to: recipient, subject: subject, htmlBody: fullHtml, name: "LWS Alert" }); Logger.log('Email sent to ' + recipient + ' for ' + workerName + ', type ' + alertType); }
     catch (e) { Logger.log('Email failed for ' + recipient + ' (' + workerName + '). Error: ' + e.toString()); }
 }
-`;
+`,
 
             // ADMIN GUIDE
-            window.LWS_TEMPLATES.admin_guide = `
+            admin_guide: `
 # Administrator Setup Guide: Lone Worker Safety System
 
 Welcome! This guide explains setting up the LWS system, including hosting apps for free using GitHub Pages. Follow the steps carefully.
@@ -706,10 +706,10 @@ Create final files and put them online.
 * Give **Monitor App URL** to monitor for desktop browser. It should connect automatically.
 
 **Setup Complete!** 🎉
-`;
+`,
 
             // INSTALLER GUIDE
-            window.LWS_TEMPLATES.installer_guide = `
+            installer_guide: `
 # Optional Guide: Creating a Desktop Installer for the Monitor App
 
 Use [**Nativefier**](https://github.com/nativefier/nativefier) to turn the Monitor App website into a simple desktop app.
@@ -731,10 +731,10 @@ Use [**Nativefier**](https://github.com/nativefier/nativefier) to turn the Monit
 * \`--platform "windows" | "macos" | "linux"\`
 * \`--icon "C:\\Path\\To\\Icon.ico"\`
 * \`--single-instance\` | \`--always-on-top\` | \`--disable-dev-tools\`
-`;
+`,
 
             // PROMO BLURB
-            window.LWS_TEMPLATES.promo_blurb = `
+            promo_blurb: `
 # Lone Worker Safety System: Free & Self-Hosted
 
 Ensure staff safety with our free, open-source LWS system. Robust monitoring without subscription fees. Host on Google & GitHub Pages for full data control.
@@ -753,13 +753,168 @@ Ensure staff safety with our free, open-source LWS system. Robust monitoring wit
 * Automatic Escalation
 * 100% Free & Self-Hosted
 * Easy Deployment Tool
-`;
+`,
 
              // Manifest Template
-            window.LWS_TEMPLATES.manifest = `{ "name": "Lone Worker Safety", "short_name": "LWS App", "start_url": "index.html", "display": "standalone", "background_color": "#111827", "theme_color": "#111827", "orientation": "portrait", "icons": [ { "src": "[[LOGO_URL_192]]", "type": "image/png", "sizes": "192x192" }, { "src": "[[LOGO_URL_512]]", "type": "image/png", "sizes": "512x512" } ] }`;
+            manifest: `{ "name": "Lone Worker Safety", "short_name": "LWS App", "start_url": "index.html", "display": "standalone", "background_color": "#111827", "theme_color": "#111827", "orientation": "portrait", "icons": [ { "src": "[[LOGO_URL_192]]", "type": "image/png", "sizes": "192x192" }, { "src": "[[LOGO_URL_512]]", "type": "image/png", "sizes": "512x512" } ] }`,
+            
             // Service Worker Template
-            window.LWS_TEMPLATES.sw = `const CACHE_NAME='lws-cache-v1-'+new Date().toISOString();const urlsToCache=['./','./index.html','https://cdn.tailwindcss.com','https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap','https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js','[[LOGO_URL]]'];self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(urlsToCache).catch(err=>console.error('SW Cache AddAll failed:',err))).then(()=>self.skipWaiting()))});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.map(k=>{if(k!==CACHE_NAME&&k.startsWith('lws-cache-'))return caches.delete(k)}))).then(()=>self.clients.claim()))});self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(caches.match(e.request).then(res=>res||fetch(e.request).then(netRes=>{if(netRes.ok){const clonedRes=netRes.clone();caches.open(CACHE_NAME).then(c=>c.put(e.request,clonedRes))}return netRes}).catch(()=>{/* Optional offline */}) ))});`;
+            sw: `const CACHE_NAME='lws-cache-v1-'+new Date().toISOString();const urlsToCache=['./','./index.html','https://cdn.tailwindcss.com','https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap','https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js','[[LOGO_URL]]'];self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(urlsToCache).catch(err=>console.error('SW Cache AddAll failed:',err))).then(()=>self.skipWaiting()))});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.map(k=>{if(k!==CACHE_NAME&&k.startsWith('lws-cache-'))return caches.delete(k)}))).then(()=>self.clients.claim()))});self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(caches.match(e.request).then(res=>res||fetch(e.request).then(netRes=>{if(netRes.ok){const clonedRes=netRes.clone();caches.open(CACHE_NAME).then(c=>c.put(e.request,clonedRes))}return netRes}).catch(()=>{/* Optional offline */}) ))});`
+        }; // End of LWS_TEMPLATES object
+
+        // --- Helper function to inject all template content into JS variables ---
+        // (This function is now obsolete as templates are defined directly)
+        function injectTemplates() {
+            // All templates are now defined directly in LWS_TEMPLATES
+            console.log("Templates loaded into JS variables.");
         }
+
+
+        // *** NEW Clipboard Helper Function ***
+        function copyTextToClipboard(text, successMessage) {
+            // Create a temporary textarea element
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            
+            // Make it invisible and off-screen
+            textArea.style.position = "fixed";
+            textArea.style.top = "-9999px";
+            textArea.style.left = "-9999px";
+            
+            document.body.appendChild(textArea);
+            
+            // Select and copy
+            textArea.focus();
+            textArea.select();
+            
+            let success = false;
+            try {
+                success = document.execCommand('copy');
+            } catch (err) {
+                console.error("Copy failed:", err);
+            }
+            
+            // Clean up
+            document.body.removeChild(textArea);
+            
+            // Give feedback
+            if (success) {
+                alert(successMessage);
+            } else {
+                alert("Copy failed! Your browser might not support this, or permissions may be denied.");
+            }
+        }
+
+    </script>
+
+    <script>
+        // --- Main Event Listeners (DOM Ready) ---
+        document.addEventListener('DOMContentLoaded', () => {
+
+            document.getElementById('copyHeadersBtn').addEventListener('click', () => { 
+                copyTextToClipboard(sheetHeaders, "Sheet headers copied! Paste into cell A1.");
+            });
+
+            document.getElementById('copyScriptBtn').addEventListener('click', () => {
+                const secretKeyInput = document.getElementById('secretKey');
+                const secretKey = secretKeyInput.value.trim();
+
+                if (!secretKey) {
+                    alert('Please enter a Secret Key in Step 1 first.');
+                    secretKeyInput.focus();
+                    return;
+                }
+
+                let scriptContent = getTemplateContent('apps_script'); // Use helper
+                if (!scriptContent) {
+                    alert('Error: Apps Script template failed to load. Please reload the page.');
+                    return;
+                }
+
+                // Inject the secret key
+                const escapedKey = secretKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"'); 
+                scriptContent = scriptContent.replace(
+                    'var SECRET_KEY = "YOUR_SECRET_KEY_HERE";', 
+                    `var SECRET_KEY = "${escapedKey}";`
+                );
+                
+                copyTextToClipboard(scriptContent, "Apps Script code (with Secret Key) copied! Paste into the Apps Script editor.");
+            });
+
+            document.getElementById('testConnectionBtn').addEventListener('click', () => { 
+                const url = document.getElementById('scriptUrl').value.trim(); 
+                const key = document.getElementById('secretKey').value.trim(); 
+                const statusEl = document.getElementById('testStatus'); 
+                if (!key) { statusEl.textContent = '❌ Error: Enter Secret Key in Step 1.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; return; } 
+                if (!url) { statusEl.textContent = '❌ Error: URL required.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; return; } 
+                statusEl.textContent = 'Testing...'; statusEl.className = 'ml-3 text-gray-500'; 
+                const cbName = 'jscb_' + Date.now(); 
+                const script = document.createElement('script'); 
+                let timeout; 
+                window[cbName] = (data) => { clearTimeout(timeout); delete window[cbName]; try { document.body.removeChild(script); } catch(e){} if (data.status === 'error' && data.message.includes('Access Denied')) { statusEl.textContent = '❌ Access Denied! Check Key.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; } else if (Array.isArray(data)) { statusEl.textContent = '✅ Success!'; statusEl.className = 'ml-3 text-green-600 font-semibold'; } else { statusEl.textContent = '⚠️ Unexpected data. Check URL/Deployment.'; statusEl.className = 'ml-3 text-yellow-600 font-semibold'; } }; 
+                script.src = url + '?callback=' + cbName + '&token=' + encodeURIComponent(key) + '&t=' + Date.now(); 
+                script.onerror = () => { clearTimeout(timeout); delete window[cbName]; try { document.body.removeChild(script); } catch(e){} statusEl.textContent = '❌ Failed! Check URL/Deployment/CORS.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; }; 
+                document.body.appendChild(script); 
+                timeout = setTimeout(() => { if (window[cbName]) { delete window[cbName]; try { document.body.removeChild(script); } catch(e){} statusEl.textContent = '❌ Timeout! Check URL/Network.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; } }, 15000); 
+            });
+
+            document.getElementById('generateBtn').addEventListener('click', async () => { 
+                const url = document.getElementById('scriptUrl').value.trim(); 
+                const key = document.getElementById('secretKey').value.trim(); 
+                if (!key) { alert("Enter Secret Key in Step 1."); return; } 
+                if (!url) { alert("Enter Web App URL in Step 3."); return; } 
+                const statusText = document.getElementById('testStatus').textContent || ""; 
+                if (!statusText.includes("✅ Success") && !confirm("Connection test failed/not run. Proceed anyway?")) return; 
+                try { 
+                    const zip = new JSZip(); 
+                    const alertTime = document.getElementById('firstAlert').value; 
+                    const checkin = document.getElementById('checkinEnabled').value; 
+                    const interval = document.getElementById('checkinInterval').value; 
+                    const logo = document.getElementById('companyLogo').value.trim() || 'https://i.postimg.cc/dVmVg3Pn/favicon-logo-for-LWSApp.png'; 
+                    
+                    let workerApp = getTemplateContent('worker_app'); 
+                    let monitorApp = getTemplateContent('monitor_app'); 
+                    let manifest = getTemplateContent('manifest'); 
+                    let sw = getTemplateContent('sw'); 
+                    let admin = getTemplateContent('admin_guide'); 
+                    let installer = getTemplateContent('installer_guide'); 
+                    let promo = getTemplateContent('promo_blurb'); 
+                    
+                    if (!workerApp || !monitorApp || !manifest || !sw || !admin || !installer || !promo) throw new Error("Template loading failed."); 
+                    
+                    workerApp = workerApp.replace('const FIRST_ALERT_MINUTES = 15;', \`const FIRST_ALERT_MINUTES = \${alertTime || 15};\`); 
+                    workerApp = workerApp.replace('const CHECKIN_ENABLED = false;', \`const CHECKIN_ENABLED = \${checkin || 'false'};\`); 
+                    workerApp = workerApp.replace('const CHECKIN_INTERVAL = 30;', \`const CHECKIN_INTERVAL = \${interval || 30};\`); 
+                    workerApp = workerApp.replace(/https:\\/\\/i\\.postimg\\.cc\\/dVmVg3Pn\\/favicon-logo-for-LWSApp\\.png/g, logo); 
+                    workerApp = workerApp.replace('<link rel="manifest" href="manifest.json">', \`<link rel="canonical" href="?scriptUrl=\${encodeURIComponent(url)}">\\n<link rel="manifest" href="manifest.json">\`); 
+                    
+                    const workerFolder = zip.folder("LoneWorkerApp"); 
+                    workerFolder.file("index.html", workerApp); 
+                    manifest = manifest.replace('[[LOGO_URL_192]]', logo); 
+                    manifest = manifest.replace('[[LOGO_URL_512]]', logo); 
+                    workerFolder.file("manifest.json", manifest); 
+                    sw = sw.replace('[[LOGO_URL]]', logo); 
+                    workerFolder.file("sw.js", sw); 
+                    
+                    const escapedKey = key.replace(/\\/g, '\\\\').replace(/"/g, '\\"'); 
+                    const loginScript = \`\\n<script>(function(){ const u="\${url}"; const k="\${escapedKey}"; if(u&&k){localStorage.setItem('lwsMonitorUrl',u); localStorage.setItem('lwsMonitorKey',k);}})();<\/script>\\n</body>\`; 
+                    monitorApp = monitorApp.replace('</body>', loginScript); 
+                    
+                    const monitorFolder = zip.folder("MonitoringDashboardApp"); 
+                    monitorFolder.file("index.html", monitorApp); 
+                    
+                    zip.file("Administrator Setup Guide.md", admin); 
+                    zip.file("Installer Creation Guide.md", installer); 
+                    zip.file("Promotional Blurb.md", promo); 
+                    
+                    const content = await zip.generateAsync({ type: "blob" }); 
+                    saveAs(content, "LWS_Deployment.zip"); 
+                } catch (e) { console.error("Zip Error:", e); alert("Zip generation failed: " + e.message); } 
+            });
+
+            // This function runs on page load
+            injectTemplates();
+        });
     </script>
 </body>
 </html>
