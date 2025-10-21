@@ -7,9 +7,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.0/FileSaver.min.js"></script>
     <style>
-        /* Ensure template tag itself isn't displayed, even if CSS fails */
-        template { display: none !important; }
-        /* Style for required fields */
         .required-label::after { content: '*'; color: red; margin-left: 2px; }
     </style>
 </head>
@@ -19,327 +16,89 @@
         <h2 class="text-xl font-semibold text-gray-700 mb-6">Deployment Setup Tool</h2>
 
         <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <h3 class="text-lg font-semibold mb-2">Instructions</h3>
-            <p class="text-gray-700">Follow these steps carefully to generate your customized deployment package. This tool runs entirely in your browser; no data is uploaded.</p>
+             <h3 class="text-lg font-semibold mb-2">Instructions</h3>
+             <p class="text-gray-700">Follow steps carefully. Runs in browser; no data uploaded.</p>
         </div>
 
         <div class="mb-6 p-4 border rounded-lg bg-blue-50 border-blue-200">
             <h3 class="text-2xl font-semibold mb-3">Step 1: Create the Google Sheet & Secret Key</h3>
             <ol class="list-decimal list-inside space-y-2 mb-4 text-gray-800">
-                <li>Go to <a href="http://googleusercontent.com/sheets.google.com/0" target="_blank" class="text-blue-600 hover:underline">sheets.google.com/create</a> and create a **new blank spreadsheet**.</li>
-                <li>Give it a clear name, like <code class="bg-gray-200 px-1 py-0.5 rounded">Lone Worker Data</code>.</li>
-                <li>Click the button below to copy the required headers:
-                    <button id="copyHeadersBtn" class="ml-2 bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded text-sm">Copy Sheet Headers</button>
-                </li>
-                <li>Go back to your Google Sheet, click **once** in cell <code class="bg-gray-200 px-1 py-0.5 rounded">A1</code> (the top-left cell), and **Paste** the headers (Ctrl+V or Cmd+V).</li>
-                <li>**Create a Secret Key:** This acts like a password to protect your system. Enter a strong, unique password below. **Remember this key!** (Though it will be automatically added to the script and monitor app).</li>
+                <li>Go to <a href="https://sheets.google.com/create" target="_blank" class="text-blue-600 hover:underline">sheets.google.com/create</a> & create **new blank spreadsheet**.</li>
+                <li>Name it (e.g., `Lone Worker Data`).</li>
+                <li>Click button -> <button id="copyHeadersBtn" class="ml-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded text-sm inline-block">Copy Sheet Headers</button></li>
+                <li>Go to sheet, click cell `A1`, **Paste** headers.</li>
+                <li>**Create Secret Key:** Enter strong password below.</li>
             </ol>
             <div>
                 <label for="secretKey" class="block text-sm font-medium text-gray-700 required-label">Secret Key</label>
-                <input type="password" id="secretKey" class="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Enter a strong, unique password here">
-                <p class="text-xs text-gray-500 mt-1">Example: MyStr0ngP@ssw0rd! Don't use this example.</p>
+                <input type="password" id="secretKey" class="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Enter strong password">
+                <p class="text-xs text-gray-500 mt-1">Don't use easily guessable keys.</p>
             </div>
         </div>
 
         <div class="mb-6 p-4 border rounded-lg bg-blue-50 border-blue-200">
             <h3 class="text-2xl font-semibold mb-3">Step 2: Deploy the Backend Script</h3>
              <ol class="list-decimal list-inside space-y-2 mb-4 text-gray-800">
-                <li>In your Google Sheet (\`Lone Worker Data\`), go to the menu: <code class="bg-gray-200 px-1 py-0.5 rounded">Extensions > Apps Script</code>. A new tab will open.</li>
-                <li>Delete any placeholder code (like `function myFunction() {...}`) in the editor window.</li>
-                <li>Click the button below. It will copy the script code **with your Secret Key from Step 1 already inserted**:
-                    <button id="copyScriptBtn" class="ml-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-sm">Copy Script Code (with Secret Key)</button>
-                </li>
-                 <li>Paste the copied code into the empty Apps Script editor.</li>
-                 <li>Click the **"Deploy"** button (top right), then **"New deployment"**.</li>
-                 <li>Click the gear icon ⚙️ next to "Select type" and choose **"Web app"**.</li>
-                 <li>Configure the deployment:
-                     <ul class="list-disc list-inside ml-4 mt-1 text-sm">
-                         <li>Description: (Optional) e.g., `LWS Backend`</li>
-                         <li>Execute as: `Me (your.email@example.com)`</li>
-                         <li>Who has access: Change to **`Anyone`** (This is essential!)</li>
-                     </ul>
-                 </li>
+                <li>In sheet: `Extensions > Apps Script`. New tab opens.</li>
+                <li>Delete placeholder code.</li>
+                <li>Click button -> <button id="copyScriptBtn" class="ml-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-sm inline-block">Copy Script Code (with Key)</button></li>
+                 <li>Paste copied code into Apps Script editor.</li>
+                 <li>Click **"Deploy" > "New deployment"**.</li>
+                 <li>Click ⚙️ > **"Web app"**.</li>
+                 <li>Configure: Execute as `Me`, **Who has access: `Anyone`** (essential!).</li>
                  <li>Click **"Deploy"**.</li>
-                 <li>**Authorize Access:** If prompted, click "Authorize access", choose your Google account, click "Advanced", click "Go to [Project Name] (unsafe)", review permissions, and click "Allow".</li>
-                 <li>**Copy the Web App URL:** After deployment, a box appears showing the **Web app URL**. Click the **Copy** button next to it. You'll need this URL for the next step.</li>
-                 <li>Click **"Done"**. Keep this Apps Script tab open for Step 5.</li>
+                 <li>**Authorize Access:** Click "Authorize", choose account, "Advanced", "Go to... (unsafe)", "Allow".</li>
+                 <li>**Copy the Web app URL** provided after deployment.</li>
+                 <li>Click **"Done"**. Keep tab open for Step 5.</li>
              </ol>
         </div>
 
         <div class="mb-6 p-4 border rounded-lg bg-green-50 border-green-200">
-            <h3 class="text-2xl font-semibold mb-3">Step 3: Enter Deployed URL & Test Connection</h3>
-            <p class="mb-3 text-gray-800">Paste the **Web App URL** you copied in the previous step.</p>
+            <h3 class="text-2xl font-semibold mb-3">Step 3: Enter URL & Test Connection</h3>
+            <p class="mb-3 text-gray-800">Paste the **Web App URL** you copied.</p>
             <div class="space-y-4">
                 <div>
                     <label for="scriptUrl" class="block text-sm font-medium text-gray-700 required-label">Deployed Web App URL</label>
-                    <input type="url" id="scriptUrl" class="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Paste the URL copied from Apps Script deployment">
+                    <input type="url" id="scriptUrl" class="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Paste URL from Apps Script deployment">
                 </div>
                 <button id="testConnectionBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Test Connection</button>
-                <span id="testStatus" class="ml-3 text-gray-500">(Requires Secret Key from Step 1 and URL above)</span>
+                <span id="testStatus" class="ml-3 text-gray-500">(Uses Secret Key from Step 1)</span>
             </div>
         </div>
 
         <div class="mb-6 p-4 border rounded-lg bg-yellow-50 border-yellow-200">
             <h3 class="text-2xl font-semibold mb-3">Step 4: Customize App Variables (Optional)</h3>
             <div class="space-y-4">
-                <div>
-                    <label for="firstAlert" class="block text-sm font-medium text-gray-700">First Alert Time (in minutes, after overdue)</label>
-                    <input type="number" id="firstAlert" value="15" min="1" class="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <div>
-                    <label for="checkinEnabled" class="block text-sm font-medium text-gray-700">"Are You OK?" Check-ins</label>
-                    <select id="checkinEnabled" class="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                        <option value="false" selected>Disabled</option>
-                        <option value="true">Enabled</option>
-                    </select>
-                </div>
-                 <div>
-                    <label for="checkinInterval" class="block text-sm font-medium text-gray-700">Check-in Interval (in minutes, if enabled)</label>
-                    <input type="number" id="checkinInterval" value="30" min="5" class="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <div>
-                    <label for="companyLogo" class="block text-sm font-medium text-gray-700">Company Logo URL (for PWA Icon)</label>
-                    <input type="url" id="companyLogo" value="https://i.postimg.cc/dVmVg3Pn/favicon-logo-for-LWSApp.png" class="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="https://example.com/logo.png">
-                     <p class="text-xs text-gray-500 mt-1">Must be a publicly accessible image URL (e.g., hosted on your website).</p>
-               </div>
+                <div> <label for="firstAlert" class="block text-sm font-medium text-gray-700">First Alert Time (mins after overdue)</label> <input type="number" id="firstAlert" value="15" min="1" class="mt-1 block w-fit bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3"> </div>
+                <div> <label for="checkinEnabled" class="block text-sm font-medium text-gray-700">"Are You OK?" Check-ins</label> <select id="checkinEnabled" class="mt-1 block w-fit bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3"> <option value="false" selected>Disabled</option> <option value="true">Enabled</option> </select> </div>
+                <div> <label for="checkinInterval" class="block text-sm font-medium text-gray-700">Check-in Interval (mins, if enabled)</label> <input type="number" id="checkinInterval" value="30" min="5" class="mt-1 block w-fit bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3"> </div>
+                <div> <label for="companyLogo" class="block text-sm font-medium text-gray-700">Company Logo URL (for PWA Icon)</label> <input type="url" id="companyLogo" value="https://i.postimg.cc/dVmVg3Pn/favicon-logo-for-LWSApp.png" class="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3" placeholder="https://example.com/logo.png"> <p class="text-xs text-gray-500 mt-1">Publicly accessible image URL.</p> </div>
             </div>
         </div>
         
         <div class="mb-6 p-4 border rounded-lg bg-blue-50 border-blue-200">
              <h3 class="text-2xl font-semibold mb-3">Step 5: Set Up Automatic Checker</h3>
              <ol class="list-decimal list-inside space-y-2 text-gray-800">
-                 <li>Go back to the **Apps Script editor** tab (from Step 2).</li>
-                 <li>Click the **Triggers** icon ⏰ on the left sidebar.</li>
-                 <li>Click the **"+ Add Trigger"** button.</li>
-                 <li>Configure the trigger:
-                      <ul class="list-disc list-inside ml-4 mt-1 text-sm">
-                         <li>Function to run: `checkOverdueWorkers`</li>
-                         <li>Deployment: `Head`</li>
-                         <li>Event source: `Time-driven`</li>
-                         <li>Type of time-based trigger: `Minutes timer`</li>
-                         <li>Minute interval: `Every 5 minutes`</li>
-                         <li>Error notification: `Notify me daily` (recommended)</li>
-                      </ul>
-                 </li>
-                 <li>Click **Save**.</li>
-                 <li>**Authorize again** if prompted (follow the same "Advanced" > "Go to..." > "Allow" steps).</li>
+                 <li>Go back to the **Apps Script editor** tab.</li>
+                 <li>Click **Triggers** ⏰ (left sidebar).</li>
+                 <li>Click **"+ Add Trigger"**.</li>
+                 <li>Configure: Function `checkOverdueWorkers`, Deployment `Head`, Source `Time-driven`, Type `Minutes timer`, Interval `Every 5 minutes`, Notifications `Notify me daily`.</li>
+                 <li>Click **Save**. **Authorize** again if asked.</li>
              </ol>
         </div>
 
-
         <div class="p-4 border rounded-lg bg-red-50 border-red-200">
             <h3 class="text-2xl font-semibold mb-3">Step 6: Generate & Download App Package</h3>
-            <p class="mb-3 text-gray-800">This creates a <code class="bg-gray-200 px-1 py-0.5 rounded">LWS_Deployment.zip</code> file containing your customized apps (with URL and Secret Key embedded) and guides, ready for hosting.</p>
+            <p class="mb-3 text-gray-800">Creates <code class="bg-gray-200 px-1 py-0.5 rounded">LWS_Deployment.zip</code> with customized apps (URL/Key embedded) and guides.</p>
             <button id="generateBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-5 rounded-lg text-lg">Generate & Download .zip Package</button>
         </div>
     </div>
 
-    <div id="templates" style="display: none !important;">
-        <template id="worker_app_template-tpl"></template>
-        <template id="monitor_app_template-tpl"></template>
-        <template id="apps_script_template-tpl"></template>
-        <template id="admin_guide_template-tpl"></template>
-        <template id="installer_guide_template-tpl"></template>
-        <template id="promo_blurb_template-tpl"></template>
-        <template id="manifest_template-tpl"></template>
-        <template id="sw_template-tpl"></template>
-    </div>
-
     <script>
-        const sheetHeaders = [
-            "Date", "Worker Name", "Worker Phone Number",
-            "Emergency Contact Name", "Emergency Contact Number", "Emergency Contact Email",
-            "Escalation Contact Name", "Escalation Contact Number", "Escalation Contact Email",
-            "Location Name", "Location Address", "Arrival Time", "Anticipated Departure Time",
-            "Actual Departure Time", "Alarm Status", "Last Known GPS", "GPS Timestamp", "Notes"
-        ].join("\t");
-
-        // --- Helper function to get template content ---
-        // *** MODIFIED to use textContent ***
-        function getTemplateContent(id) {
-            const template = document.getElementById(id + '-tpl');
-            // Use textContent to get the raw text, avoiding HTML entity issues
-             return template ? template.textContent : '';
-        }
-
-        // --- Populate Templates on Load ---
-        window.onload = () => {
-            // Function defined below, populates template tags
-            injectTemplates(); 
-        };
-        
-        // --- Button Event Listeners (Attached AFTER DOM content loaded) ---
-        document.addEventListener('DOMContentLoaded', () => {
-
-            document.getElementById('copyHeadersBtn').addEventListener('click', () => { 
-                copyTextToClipboard(sheetHeaders, "Sheet headers copied! Paste into cell A1.");
-            });
-
-            document.getElementById('copyScriptBtn').addEventListener('click', () => {
-                const secretKeyInput = document.getElementById('secretKey');
-                const secretKey = secretKeyInput.value.trim();
-
-                if (!secretKey) {
-                    alert('Please enter a Secret Key in Step 1 first.');
-                    secretKeyInput.focus();
-                    return;
-                }
-
-                let scriptContent = getTemplateContent('apps_script_template'); // Use helper
-                if (!scriptContent) {
-                    alert('Error: Apps Script template failed to load. Please reload the page.');
-                    return;
-                }
-
-                // Inject the secret key
-                const escapedKey = secretKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"'); 
-                scriptContent = scriptContent.replace(
-                    'var SECRET_KEY = "YOUR_SECRET_KEY_HERE";', 
-                    `var SECRET_KEY = "${escapedKey}";`
-                );
-                
-                // Use the reliable copy function
-                copyTextToClipboard(scriptContent, "Apps Script code (with Secret Key) copied! Paste into the Apps Script editor.");
-            });
-
-            document.getElementById('testConnectionBtn').addEventListener('click', () => { 
-                const url = document.getElementById('scriptUrl').value.trim(); 
-                const key = document.getElementById('secretKey').value.trim(); 
-                const statusEl = document.getElementById('testStatus'); 
-                if (!key) { statusEl.textContent = '❌ Error: Enter Secret Key in Step 1.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; return; } 
-                if (!url) { statusEl.textContent = '❌ Error: URL required.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; return; } 
-                statusEl.textContent = 'Testing...'; statusEl.className = 'ml-3 text-gray-500'; 
-                const cbName = 'jscb_' + Date.now(); 
-                const script = document.createElement('script'); 
-                let timeout; 
-                window[cbName] = (data) => { clearTimeout(timeout); delete window[cbName]; try { document.body.removeChild(script); } catch(e){} if (data.status === 'error' && data.message.includes('Access Denied')) { statusEl.textContent = '❌ Access Denied! Check Key.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; } else if (Array.isArray(data)) { statusEl.textContent = '✅ Success!'; statusEl.className = 'ml-3 text-green-600 font-semibold'; } else { statusEl.textContent = '⚠️ Unexpected data. Check URL/Deployment.'; statusEl.className = 'ml-3 text-yellow-600 font-semibold'; } }; 
-                script.src = url + '?callback=' + cbName + '&token=' + encodeURIComponent(key) + '&t=' + Date.now(); 
-                script.onerror = () => { clearTimeout(timeout); delete window[cbName]; try { document.body.removeChild(script); } catch(e){} statusEl.textContent = '❌ Failed! Check URL/Deployment/CORS.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; }; 
-                document.body.appendChild(script); 
-                timeout = setTimeout(() => { if (window[cbName]) { delete window[cbName]; try { document.body.removeChild(script); } catch(e){} statusEl.textContent = '❌ Timeout! Check URL/Network.'; statusEl.className = 'ml-3 text-red-600 font-semibold'; } }, 15000); 
-            });
-
-            document.getElementById('generateBtn').addEventListener('click', async () => { 
-                const url = document.getElementById('scriptUrl').value.trim(); 
-                const key = document.getElementById('secretKey').value.trim(); 
-                if (!key) { alert("Enter Secret Key in Step 1."); return; } 
-                if (!url) { alert("Enter Web App URL in Step 3."); return; } 
-                const statusText = document.getElementById('testStatus').textContent || ""; 
-                if (!statusText.includes("✅ Success") && !confirm("Connection test failed/not run. Proceed anyway?")) return; 
-                try { 
-                    const zip = new JSZip(); 
-                    const alertTime = document.getElementById('firstAlert').value; 
-                    const checkin = document.getElementById('checkinEnabled').value; 
-                    const interval = document.getElementById('checkinInterval').value; 
-                    const logo = document.getElementById('companyLogo').value.trim() || 'https://i.postimg.cc/dVmVg3Pn/favicon-logo-for-LWSApp.png'; 
-                    
-                    let workerApp = getTemplateContent('worker_app_template'); 
-                    let monitorApp = getTemplateContent('monitor_app_template'); 
-                    let manifest = getTemplateContent('manifest_template'); 
-                    let sw = getTemplateContent('sw_template'); 
-                    let admin = getTemplateContent('admin_guide_template'); 
-                    let installer = getTemplateContent('installer_guide_template'); 
-                    let promo = getTemplateContent('promo_blurb_template'); 
-                    
-                    if (!workerApp || !monitorApp || !manifest || !sw || !admin || !installer || !promo) throw new Error("Template loading failed."); 
-                    
-                    workerApp = workerApp.replace('const FIRST_ALERT_MINUTES = 15;', \`const FIRST_ALERT_MINUTES = \${alertTime || 15};\`); 
-                    workerApp = workerApp.replace('const CHECKIN_ENABLED = false;', \`const CHECKIN_ENABLED = \${checkin || 'false'};\`); 
-                    workerApp = workerApp.replace('const CHECKIN_INTERVAL = 30;', \`const CHECKIN_INTERVAL = \${interval || 30};\`); 
-                    workerApp = workerApp.replace(/https:\\/\\/i\\.postimg\\.cc\\/dVmVg3Pn\\/favicon-logo-for-LWSApp\\.png/g, logo); 
-                    workerApp = workerApp.replace('<link rel="manifest" href="manifest.json">', \`<link rel="canonical" href="?scriptUrl=\${encodeURIComponent(url)}">\\n<link rel="manifest" href="manifest.json">\`); 
-                    
-                    const workerFolder = zip.folder("LoneWorkerApp"); 
-                    workerFolder.file("index.html", workerApp); 
-                    manifest = manifest.replace('[[LOGO_URL_192]]', logo); 
-                    manifest = manifest.replace('[[LOGO_URL_512]]', logo); 
-                    workerFolder.file("manifest.json", manifest); 
-                    sw = sw.replace('[[LOGO_URL]]', logo); 
-                    workerFolder.file("sw.js", sw); 
-                    
-                    const escapedKey = key.replace(/\\/g, '\\\\').replace(/"/g, '\\"'); 
-                    const loginScript = \`\\n<script>(function(){ const u="\${url}"; const k="\${escapedKey}"; if(u&&k){localStorage.setItem('lwsMonitorUrl',u); localStorage.setItem('lwsMonitorKey',k);}})();<\/script>\\n</body>\`; 
-                    monitorApp = monitorApp.replace('</body>', loginScript); 
-                    
-                    const monitorFolder = zip.folder("MonitoringDashboardApp"); 
-                    monitorFolder.file("index.html", monitorApp); 
-                    
-                    zip.file("Administrator Setup Guide.md", admin); 
-                    zip.file("Installer Creation Guide.md", installer); 
-                    zip.file("Promotional Blurb.md", promo); 
-                    
-                    const content = await zip.generateAsync({ type: "blob" }); 
-                    saveAs(content, "LWS_Deployment.zip"); 
-                } catch (e) { console.error("Zip Error:", e); alert("Zip generation failed: " + e.message); } 
-            });
-
-        }); // End DOMContentLoaded
-        
-
-        // *** NEW/RELIABLE Clipboard Helper Function ***
-        function copyTextToClipboard(text, successMessage) {
-            const textArea = document.createElement("textarea");
-            
-            // --- Styling to make it invisible ---
-            textArea.style.position = "fixed";
-            textArea.style.top = "-9999px";
-            textArea.style.left = "-9999px";
-            textArea.style.width = "2em";
-            textArea.style.height = "2em";
-            textArea.style.padding = "0";
-            textArea.style.border = "none";
-            textArea.style.outline = "none";
-            textArea.style.boxShadow = "none";
-            textArea.style.background = "transparent";
-            // --- End Styling ---
-
-            textArea.value = text;
-            
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            
-            let success = false;
-            try {
-                success = document.execCommand('copy');
-            } catch (err) {
-                console.error("Copy failed:", err);
-            }
-            
-            document.body.removeChild(textArea);
-            
-            if (success) {
-                alert(successMessage);
-            } else {
-                // Fallback using modern API (just in case, though execCommand is better for local)
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(text).then(() => {
-                        alert(successMessage);
-                    }).catch(err => {
-                        alert("Copy failed! Your browser might be blocking it. Please try again or check permissions.");
-                        console.error("Async clipboard write failed:", err);
-                    });
-                } else {
-                     alert("Copy failed! Your browser seems to block clipboard access.");
-                }
-            }
-        }
-
-        // --- Helper function to inject all template content into <template> tags ---
-        // *** MODIFIED to use textContent ***
-        function injectTemplates() {
-            // Function to set text content
-            const setText = (id, content) => {
-                const el = document.getElementById(id + '-tpl');
-                if (el) {
-                    el.textContent = content; // Use textContent
-                } else {
-                    console.error("Template element not found:", id + '-tpl');
-                }
-            };
-
-            // WORKER APP
-            setText('worker_app_template', `
+        // --- Template Storage ---
+        // Global object to hold template content as strings
+        const LWS_TEMPLATES = {
+            worker_app: `
 <!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
@@ -718,7 +477,6 @@ function doPost(e) {
                         sendAlertEmail(updatedRowData, currentStatus);
                         var notesColIndex = headers.indexOf("Notes") + 1;
                          if (notesColIndex > 0) {
-                            // *** CORRECTED LINE (Use \\n for literal newline in Apps Script string) ***
                             var newNote = (notes ? notes + "\\n" : "") + marker + " at " + new Date().toISOString();
                             sheet.getRange(finalRowIndex, notesColIndex).setValue(newNote);
                         }
@@ -800,7 +558,6 @@ function checkOverdueWorkers() {
                 sendAlertEmail(worker, nextStatusLevel);
                 if (notesColIndex !== -1 && notesColIndex >= 0) {
                     var currentNotes = row[notesColIndex] || "";
-                    // *** THIS IS THE SECOND CORRECTED LINE ***
                     var newNote = (currentNotes ? currentNotes + "\\n" : "") + "Auto email: " + nextStatusLevel + " at " + new Date().toISOString();
                      sheet.getRange(i + 1, notesColIndex + 1).setValue(newNote);
                      updatesMade++;
@@ -960,7 +717,7 @@ Use [**Nativefier**](https://github.com/nativefier/nativefier) to turn the Monit
 ## **Prerequisites**
 
 1.  **Node.js Installed:** Download & install **LTS** from [nodejs.org](https://nodejs.org/).
-2.  **Your Monitor App URL:** (e.g., \`https://YourUsername.github.io/YourRepo/MonitoringDashboardApp/\`).
+2.  **Your Monitor App URL:** (e.g., \`https://YourGitHubUsername.github.io/YourRepo/MonitoringDashboardApp/\`).
 3.  **Command Prompt/Terminal.**
 
 ## **Instructions**
@@ -1004,34 +761,35 @@ Ensure staff safety with our free, open-source LWS system. Robust monitoring wit
             // Service Worker Template
             sw: `const CACHE_NAME='lws-cache-v1-'+new Date().toISOString();const urlsToCache=['./','./index.html','https://cdn.tailwindcss.com','https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap','https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js','[[LOGO_URL]]'];self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(urlsToCache).catch(err=>console.error('SW Cache AddAll failed:',err))).then(()=>self.skipWaiting()))});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.map(k=>{if(k!==CACHE_NAME&&k.startsWith('lws-cache-'))return caches.delete(k)}))).then(()=>self.clients.claim()))});self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(caches.match(e.request).then(res=>res||fetch(e.request).then(netRes=>{if(netRes.ok){const clonedRes=netRes.clone();caches.open(CACHE_NAME).then(c=>c.put(e.request,clonedRes))}return netRes}).catch(()=>{/* Optional offline */}) ))});`
         }; // End of LWS_TEMPLATES object
+    </script>
 
-        // --- Helper function to inject all template content into JS variables ---
-        // (This function is now obsolete as templates are defined directly)
-        function injectTemplates() {
-            // All templates are now defined directly in LWS_TEMPLATES
-            console.log("Templates loaded into JS variables.");
-        }
-
-
-        // *** NEW/RELIABLE Clipboard Helper Function ***
+    <script>
+        // *** This helper function creates a temporary textarea to use document.execCommand ***
         function copyTextToClipboard(text, successMessage) {
-            // Create a temporary textarea element
             const textArea = document.createElement("textarea");
-            textArea.value = text;
             
-            // Make it invisible
+            // --- Styling to make it invisible ---
             textArea.style.position = "fixed";
             textArea.style.top = "-9999px";
             textArea.style.left = "-9999px";
-            textArea.style.opacity = "0";
+            textArea.style.width = "2em";
+            textArea.style.height = "2em";
+            textArea.style.padding = "0";
+            textArea.style.border = "none";
+            textArea.style.outline = "none";
+            textArea.style.boxShadow = "none";
+            textArea.style.background = "transparent";
+            // --- End Styling ---
+
+            textArea.value = text;
             
             document.body.appendChild(textArea);
-            
             textArea.focus();
             textArea.select();
             
             let success = false;
             try {
+                // This is the reliable, old-school copy command
                 success = document.execCommand('copy');
             } catch (err) {
                 console.error("Copy failed (execCommand):", err);
@@ -1043,7 +801,7 @@ Ensure staff safety with our free, open-source LWS system. Robust monitoring wit
             if (success) {
                 alert(successMessage);
             } else {
-                // Fallback attempt with modern API (just in case execCommand is disabled, though unlikely)
+                // As a fallback, try the modern API (which you said fails, but good to have)
                 if (navigator.clipboard) {
                     navigator.clipboard.writeText(text).then(() => {
                         alert(successMessage);
@@ -1086,6 +844,7 @@ Ensure staff safety with our free, open-source LWS system. Robust monitoring wit
                     `var SECRET_KEY = "${escapedKey}";`
                 );
                 
+                // Use the reliable copy function
                 copyTextToClipboard(scriptContent, "Apps Script code (with Secret Key) copied! Paste into the Apps Script editor.");
             });
 
