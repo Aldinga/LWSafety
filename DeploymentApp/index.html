@@ -1,4 +1,4 @@
-x<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -6,6 +6,10 @@ x<!DOCTYPE html>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.0/FileSaver.min.js"></script>
+    <style>
+        /* Ensure template tag itself isn't displayed, even if CSS fails */
+        template { display: none !important; }
+    </style>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans p-8">
     <div class="container mx-auto max-w-2xl bg-white shadow-xl rounded-lg p-8">
@@ -75,15 +79,22 @@ x<!DOCTYPE html>
         </div>
     </div>
 
-    <div id="templates" class="hidden">
-        <pre id="worker_app_template"></pre>
-        <pre id="monitor_app_template"></pre>
-        <pre id="apps_script_template"></pre>
-        <pre id="admin_guide_template"></pre>
-        <pre id="installer_guide_template"></pre>
-        <pre id="promo_blurb_template"></pre>
+    <div id="templates" style="display: none !important;">
         
-        <pre id="manifest_template">
+        <template id="worker_app_template-tpl">
+            </template>
+        <template id="monitor_app_template-tpl">
+            </template>
+        <template id="apps_script_template-tpl">
+            </template>
+        <template id="admin_guide_template-tpl">
+            </template>
+        <template id="installer_guide_template-tpl">
+            </template>
+        <template id="promo_blurb_template-tpl">
+            </template>
+        
+        <template id="manifest_template-tpl">
 {
     "name": "Lone Worker Safety",
     "short_name": "LWS App",
@@ -105,8 +116,8 @@ x<!DOCTYPE html>
         }
     ]
 }
-        </pre>
-        <pre id="sw_template">
+        </template>
+        <template id="sw_template-tpl">
 const CACHE_NAME = 'lws-cache-v1';
 const urlsToCache = [
     './',
@@ -138,7 +149,7 @@ self.addEventListener('fetch', event => {
             })
     );
 });
-        </pre>
+        </template>
     </div>
 
     <script>
@@ -150,16 +161,22 @@ self.addEventListener('fetch', event => {
             "Actual Departure Time", "Alarm Status", "Last Known GPS", "GPS Timestamp", "Notes"
         ].join("\t");
 
+        // --- Helper function to get template content ---
+        function getTemplateContent(id) {
+            const template = document.getElementById(id + '-tpl');
+            return template ? template.innerHTML : '';
+        }
+
         // --- Populate Templates ---
         window.onload = () => {
-            // This function injects all the file content directly into the <pre> tags.
-            injectTemplates();
+            // This function injects all the file content directly into the <template> tags.
+            injectTemplates(); 
         };
         
         // --- Button Event Listeners ---
 
         document.getElementById('copyScriptBtn').addEventListener('click', () => {
-            const script = document.getElementById('apps_script_template').textContent;
+            const script = getTemplateContent('apps_script_template');
             navigator.clipboard.writeText(script).then(() => alert('Apps Script code copied to clipboard!'));
         });
 
@@ -193,18 +210,30 @@ self.addEventListener('fetch', event => {
                 } else if (Array.isArray(data)) {
                     statusEl.textContent = 'Success! Connection established.';
                     statusEl.className = 'ml-3 text-green-600';
+                } else {
+                    statusEl.textContent = 'Received unexpected data. Check script deployment.';
+                    statusEl.className = 'ml-3 text-yellow-600';
                 }
             };
             
             script.src = url + '?callback=' + callbackName + '&token=' + encodeURIComponent(key);
             script.onerror = () => {
                  delete window[callbackName];
-                 document.body.removeChild(script);
-                 statusEl.textContent = 'Failed! Check URL or CORS settings.';
+                 try { document.body.removeChild(script); } catch(e) {}
+                 statusEl.textContent = 'Failed! Check URL or CORS/deployment settings.';
                  statusEl.className = 'ml-3 text-red-600';
             };
             
             document.body.appendChild(script);
+            // Timeout for script loading errors that don't trigger onerror (like network issues)
+            setTimeout(() => {
+                if (window[callbackName]) { // If callback hasn't run yet
+                    delete window[callbackName];
+                     try { document.body.removeChild(script); } catch(e) {}
+                    statusEl.textContent = 'Timeout! Check URL or network.';
+                    statusEl.className = 'ml-3 text-red-600';
+                }
+            }, 10000); // 10 second timeout
         });
 
         document.getElementById('generateBtn').addEventListener('click', async () => {
@@ -224,8 +253,24 @@ self.addEventListener('fetch', event => {
                     return;
                 }
 
+                // --- Get template content using the helper function ---
+                let workerApp = getTemplateContent('worker_app_template');
+                let monitorApp = getTemplateContent('monitor_app_template');
+                let manifest = getTemplateContent('manifest_template');
+                let sw = getTemplateContent('sw_template');
+                let adminGuide = getTemplateContent('admin_guide_template');
+                let installerGuide = getTemplateContent('installer_guide_template');
+                let promoBlurb = getTemplateContent('promo_blurb_template');
+
+                // --- Input Validation ---
+                if (!workerApp || !monitorApp || !manifest || !sw || !adminGuide || !installerGuide || !promoBlurb) {
+                     alert("Error: One or more templates failed to load. Cannot generate package.");
+                     console.error("Missing template content. Check the injectTemplates function and template IDs.");
+                     return;
+                }
+
+
                 // 1. Process Worker App
-                let workerApp = document.getElementById('worker_app_template').textContent;
                 workerApp = workerApp.replace(
                     'const FIRST_ALERT_MINUTES = 15;', 
                     `const FIRST_ALERT_MINUTES = ${firstAlert || 15};`
@@ -252,17 +297,14 @@ self.addEventListener('fetch', event => {
                 workerAppFolder.file("index.html", workerApp);
 
                 // 2. Process PWA files
-                let manifest = document.getElementById('manifest_template').textContent;
                 manifest = manifest.replace('[[LOGO_URL_192]]', companyLogo);
                 manifest = manifest.replace('[[LOGO_URL_512]]', companyLogo);
                 workerAppFolder.file("manifest.json", manifest);
 
-                let sw = document.getElementById('sw_template').textContent;
                 sw = sw.replace('[[LOGO_URL]]', companyLogo);
                 workerAppFolder.file("sw.js", sw);
 
                 // 3. Process Monitor App
-                let monitorApp = document.getElementById('monitor_app_template').textContent;
                 // Pre-fill the URL and Key in localStorage for convenience
                 const autoLoginScript = `
                 <script>
@@ -270,7 +312,7 @@ self.addEventListener('fetch', event => {
                     (function() {
                         const url = "${scriptUrl}";
                         const key = "${secretKey}";
-                        if (url && key) {
+                        if (url && key && !localStorage.getItem('lwsMonitorUrl')) { // Only set if not already set
                             localStorage.setItem('lwsMonitorUrl', url);
                             localStorage.setItem('lwsMonitorKey', key);
                         }
@@ -283,24 +325,24 @@ self.addEventListener('fetch', event => {
                 monitorAppFolder.file("index.html", monitorApp);
 
                 // 4. Add Documentation
-                zip.file("Administrator Setup Guide.md", document.getElementById('admin_guide_template').textContent);
-                zip.file("Installer Creation Guide.md", document.getElementById('installer_guide_template').textContent);
-                zip.file("Promotional Blurb.md", document.getElementById('promo_blurb_template').textContent);
+                zip.file("Administrator Setup Guide.md", adminGuide);
+                zip.file("Installer Creation Guide.md", installerGuide);
+                zip.file("Promotional Blurb.md", promoBlurb);
 
                 // 5. Generate and Save Zip
                 const content = await zip.generateAsync({ type: "blob" });
                 saveAs(content, "LWS_Deployment.zip");
 
             } catch (e) {
-                console.error(e);
-                alert("An error occurred while generating the zip file.");
+                console.error("Error generating zip:", e);
+                alert("An error occurred while generating the zip file. Check console for details.");
             }
         });
         
         // --- Helper function to inject all template content ---
         function injectTemplates() {
-            // WORKER APP (FILE 2)
-            document.getElementById('worker_app_template').textContent = `
+            // Use innerHTML to inject into template tags
+            document.getElementById('worker_app_template-tpl').innerHTML = `
 <!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
@@ -314,9 +356,9 @@ self.addEventListener('fetch', event => {
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="https://i.postimg.cc/dVmVg3Pn/favicon-logo-for-LWSApp.png">
 <link rel="apple-touch-icon" href="https://i.postimg.cc/dVmVg3Pn/favicon-logo-for-LWSApp.png">
-<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.tailwindcss.com"><\/script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"><\/script>
 <style>
 body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
 .page { display: none; }
@@ -329,171 +371,171 @@ body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparen
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .animate-fadeIn { animation: fadeIn 0.3s ease-in-out; }
 header button svg, .edit-location-btn svg { pointer-events: none; }
-</style>
-</head>
+<\/style>
+<\/head>
 <body class="bg-gray-900 text-white h-full overflow-hidden">
 <div id="app-container" class="h-full flex flex-col">
 <div id="mainPage" class="page active h-full flex-col p-4 bg-gray-800 animate-fadeIn">
 <header class="flex justify-between items-center mb-4 relative z-10 flex-shrink-0">
-<h1 class="text-2xl font-bold text-blue-400">Lone Worker Safety</h1>
+<h1 class="text-2xl font-bold text-blue-400">Lone Worker Safety<\/h1>
 <div class="flex items-center space-x-1">
-<button id="infoBtn" class="p-3 rounded-full hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></button>
-<button id="settingsBtn" class="p-3 rounded-full hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.82l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2.82l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
-</div>
-</header>
+<button id="infoBtn" class="p-3 rounded-full hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><\/button>
+<button id="settingsBtn" class="p-3 rounded-full hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.82l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2.82l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><\/button>
+<\/div>
+<\/header>
 <div class="flex-1 overflow-y-auto min-h-0 -mx-4 px-4">
 <div class="flex flex-col h-full">
 <div class="bg-gray-900 rounded-lg p-4 mb-4 flex-grow flex flex-col">
-<h2 class="text-lg font-semibold mb-2 text-gray-300">Select Location</h2>
-<div id="locationList" class="space-y-2 flex-grow overflow-y-auto"></div>
-<button id="addLocationBtn" class="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><line x1="12" y1="5" y2="19"></line><line x1="5" y1="12" y2="19"></line></svg>Add New Location</button>
-</div>
+<h2 class="text-lg font-semibold mb-2 text-gray-300">Select Location<\/h2>
+<div id="locationList" class="space-y-2 flex-grow overflow-y-auto"><\/div>
+<button id="addLocationBtn" class="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><line x1="12" y1="5" y2="19"><\/line><line x1="5" y1="12" y2="19"><\/line><\/svg>Add New Location<\/button>
+<\/div>
 <div class="bg-gray-900 rounded-lg p-4 mb-4 flex-shrink-0">
 <div class="flex justify-between items-center mb-2">
-<h2 class="text-lg font-semibold text-gray-300">Visit Duration</h2>
-<span id="durationDisplay" class="text-xl font-bold text-blue-400">0 mins</span>
-</div>
+<h2 class="text-lg font-semibold text-gray-300">Visit Duration<\/h2>
+<span id="durationDisplay" class="text-xl font-bold text-blue-400">0 mins<\/span>
+<\/div>
 <input id="durationSlider" type="range" min="0" max="15" value="0" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb">
-</div>
-<button id="arrivedBtn" disabled class="long-press-btn relative w-full bg-gray-700 text-gray-400 font-bold py-4 px-4 rounded-lg text-xl transition-colors duration-300 flex-shrink-0">Select Location & Duration</button>
-</div>
-</div>
-</div>
+<\/div>
+<button id="arrivedBtn" disabled class="long-press-btn relative w-full bg-gray-700 text-gray-400 font-bold py-4 px-4 rounded-lg text-xl transition-colors duration-300 flex-shrink-0">Select Location & Duration<\/button>
+<\/div>
+<\/div>
+<\/div>
 <div id="lockedPage" class="page h-full flex-col justify-between items-center p-6 text-center animate-fadeIn">
 <div class="w-full flex justify-end">
-<button id="panicBtn" class="selectable-item w-20 h-20 bg-red-600 hover:bg-red-700 rounded-full text-white font-bold text-2xl flex items-center justify-center shadow-lg border-4 border-red-800">SOS</button>
-</div>
+<button id="panicBtn" class="selectable-item w-20 h-20 bg-red-600 hover:bg-red-700 rounded-full text-white font-bold text-2xl flex items-center justify-center shadow-lg border-4 border-red-800">SOS<\/button>
+<\/div>
 <div class="flex-grow flex flex-col justify-center">
-<p class="text-xl text-gray-400">Currently at</p>
-<h2 id="lockedLocationName" class="text-4xl font-bold mt-2 text-blue-400"></h2>
+<p class="text-xl text-gray-400">Currently at<\/p>
+<h2 id="lockedLocationName" class="text-4xl font-bold mt-2 text-blue-400"><\/h2>
 <div class="my-8">
-<p class="text-2xl text-gray-400">Time Remaining</p>
-<div id="countdownTimer" class="text-7xl font-bold tracking-tighter my-2">00:00:00</div>
-<p class="text-lg text-gray-400">Anticipated Departure: <span id="lockedAnticipatedTime" class="font-semibold"></span></p>
-</div>
-</div>
+<p class="text-2xl text-gray-400">Time Remaining<\/p>
+<div id="countdownTimer" class="text-7xl font-bold tracking-tighter my-2">00:00:00<\/div>
+<p class="text-lg text-gray-400">Anticipated Departure: <span id="lockedAnticipatedTime" class="font-semibold"><\/span><\/p>
+<\/div>
+<\/div>
 <div id="alertActiveContainer" class="hidden w-full mb-4">
 <div class="bg-red-900/50 border border-red-700 rounded-lg p-4 mb-4">
-<h3 class="text-xl font-bold text-red-300">ALERT ACTIVE</h3>
-<p class="text-red-400">Automated emails have been sent to your contacts.</p>
-</div>
-<button id="iamSafeBtn" class="long-press-btn relative w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-4 rounded-lg text-xl">I AM SAFE</button>
-</div>
+<h3 class="text-xl font-bold text-red-300">ALERT ACTIVE<\/h3>
+<p class="text-red-400">Automated emails have been sent to your contacts.<\/p>
+<\/div>
+<button id="iamSafeBtn" class="long-press-btn relative w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-4 rounded-lg text-xl">I AM SAFE<\/button>
+<\/div>
 <div id="normalButtonsContainer" class="w-full space-y-4 mb-4">
-<button id="extendBtn" class="long-press-btn relative w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-lg text-xl">Extend 10 Mins</button>
-<button id="departBtn" class="long-press-btn relative w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-4 rounded-lg text-xl">DEPART</button>
-</div>
-</div>
+<button id="extendBtn" class="long-press-btn relative w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-lg text-xl">Extend 10 Mins<\/button>
+<button id="departBtn" class="long-press-btn relative w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-4 rounded-lg text-xl">DEPART<\/button>
+<\/div>
+<\/div>
 <div id="settingsPage" class="page h-full flex-col p-4 bg-gray-800 animate-fadeIn">
 <header class="flex justify-between items-center mb-6 relative z-10 flex-shrink-0">
-<h1 class="text-2xl font-bold text-blue-400">Settings</h1>
-<button id="closeSettingsBtn" class="p-3 rounded-full hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
-</header>
+<h1 class="text-2xl font-bold text-blue-400">Settings<\/h1>
+<button id="closeSettingsBtn" class="p-3 rounded-full hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"><\/line><line x1="6" y1="6" x2="18" y2="18"><\/line><\/svg><\/button>
+<\/header>
 <div class="flex-1 overflow-y-auto -mx-4 px-4 min-h-0">
 <div class="space-y-4 mb-6">
-<div><label for="workerName" class="block text-sm font-medium text-gray-400">Your Name</label><input type="text" id="workerName" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div>
-<div><label for="workerPhone" class="block text-sm font-medium text-gray-400">Your Phone Number</label><input type="tel" id="workerPhone" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div>
-<div><label for="emergencyName" class="block text-sm font-medium text-gray-400">Emergency Contact Name</label><input type="text" id="emergencyName" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div>
-<div><label for="emergencyPhone" class="block text-sm font-medium text-gray-400">Emergency Contact Phone</label><input type="tel" id="emergencyPhone" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div>
-<div><label for="emergencyEmail" class="block text-sm font-medium text-gray-400">Emergency Contact Email</label><input type="email" id="emergencyEmail" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div>
-<div><label for="escalationName" class="block text-sm font-medium text-gray-400">Escalation Contact Name</label><input type="text" id="escalationName" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div>
-<div><label for="escalationPhone" class="block text-sm font-medium text-gray-400">Escalation Contact Phone</label><input type="tel" id="escalationPhone" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div>
-<div><label for="escalationEmail" class="block text-sm font-medium text-gray-400">Escalation Contact Email</label><input type="email" id="escalationEmail" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div>
-<div><label for="pinCode" class="block text-sm font-medium text-gray-400">Normal 4-Digit PIN</label><input type="password" id="pinCode" pattern="[0-9]" inputmode="numeric" maxlength="4" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div>
-<div><label for="duressPin" class="block text-sm font-medium text-gray-400">Duress 4-Digit PIN (Silent Alarm)</label><input type="password" id="duressPin" pattern="[0-9]" inputmode="numeric" maxlength="4" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div>
-<div><label for="googleSheetUrl" class="block text-sm font-medium text-gray-400">Google Sheet Web App URL</label><input type="url" id="googleSheetUrl" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div>
-</div>
-</div>
-<div class="pt-4 flex-shrink-0"><button id="saveSettingsBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Save Settings</button></div>
-</div>
-</div>
+<div><label for="workerName" class="block text-sm font-medium text-gray-400">Your Name<\/label><input type="text" id="workerName" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><\/div>
+<div><label for="workerPhone" class="block text-sm font-medium text-gray-400">Your Phone Number<\/label><input type="tel" id="workerPhone" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><\/div>
+<div><label for="emergencyName" class="block text-sm font-medium text-gray-400">Emergency Contact Name<\/label><input type="text" id="emergencyName" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><\/div>
+<div><label for="emergencyPhone" class="block text-sm font-medium text-gray-400">Emergency Contact Phone<\/label><input type="tel" id="emergencyPhone" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><\/div>
+<div><label for="emergencyEmail" class="block text-sm font-medium text-gray-400">Emergency Contact Email<\/label><input type="email" id="emergencyEmail" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><\/div>
+<div><label for="escalationName" class="block text-sm font-medium text-gray-400">Escalation Contact Name<\/label><input type="text" id="escalationName" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><\/div>
+<div><label for="escalationPhone" class="block text-sm font-medium text-gray-400">Escalation Contact Phone<\/label><input type="tel" id="escalationPhone" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><\/div>
+<div><label for="escalationEmail" class="block text-sm font-medium text-gray-400">Escalation Contact Email<\/label><input type="email" id="escalationEmail" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><\/div>
+<div><label for="pinCode" class="block text-sm font-medium text-gray-400">Normal 4-Digit PIN<\/label><input type="password" id="pinCode" pattern="[0-9]" inputmode="numeric" maxlength="4" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><\/div>
+<div><label for="duressPin" class="block text-sm font-medium text-gray-400">Duress 4-Digit PIN (Silent Alarm)<\/label><input type="password" id="duressPin" pattern="[0-9]" inputmode="numeric" maxlength="4" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><\/div>
+<div><label for="googleSheetUrl" class="block text-sm font-medium text-gray-400">Google Sheet Web App URL<\/label><input type="url" id="googleSheetUrl" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><\/div>
+<\/div>
+<\/div>
+<div class="pt-4 flex-shrink-0"><button id="saveSettingsBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Save Settings<\/button><\/div>
+<\/div>
+<\/div>
 <div id="modalBackdrop" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-50">
     <div id="locationModal" class="hidden bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 animate-fadeIn">
-        <h2 id="locationModalTitle" class="text-xl font-bold mb-4">Add New Location</h2>
+        <h2 id="locationModalTitle" class="text-xl font-bold mb-4">Add New Location<\/h2>
         <div class="space-y-4">
-            <div><label for="locationName" class="block text-sm font-medium text-gray-400">Location Name</label><input type="text" id="locationName" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div>
-            <div><label for="locationAddress" class="block text-sm font-medium text-gray-400">Location Address</label><input type="text" id="locationAddress" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><button id="useCurrentLocationBtn" class="mt-2 text-sm text-blue-400 hover:text-blue-300">Use Current Location</button></div>
-        </div>
+            <div><label for="locationName" class="block text-sm font-medium text-gray-400">Location Name<\/label><input type="text" id="locationName" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><\/div>
+            <div><label for="locationAddress" class="block text-sm font-medium text-gray-400">Location Address<\/label><input type="text" id="locationAddress" class="mt-1 block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"><button id="useCurrentLocationBtn" class="mt-2 text-sm text-blue-400 hover:text-blue-300">Use Current Location<\/button><\/div>
+        <\/div>
         <div class="mt-6 flex justify-end space-x-3">
-            <button id="deleteLocationBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg hidden">Delete</button>
-            <button id="cancelLocationBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel</button>
-            <button id="saveLocationBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Save</button>
-        </div>
-    </div>
+            <button id="deleteLocationBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg hidden">Delete<\/button>
+            <button id="cancelLocationBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel<\/button>
+            <button id="saveLocationBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Save<\/button>
+        <\/div>
+    <\/div>
     <div id="infoModal" class="hidden bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 animate-fadeIn max-h-[90vh] overflow-y-auto">
-        <h2 class="text-xl font-bold mb-4">How to Use This App</h2>
+        <h2 class="text-xl font-bold mb-4">How to Use This App<\/h2>
         <div class="text-gray-300 space-y-4">
-            <h3 class="font-semibold text-lg text-blue-400">1. Installation ("Add to Home Screen")</h3>
-            <p>For the best experience, add the app to your phone's home screen. This makes it work like a regular app.</p>
+            <h3 class="font-semibold text-lg text-blue-400">1. Installation ("Add to Home Screen")<\/h3>
+            <p>For the best experience, add the app to your phone's home screen. This makes it work like a regular app.<\/p>
             <ul class="list-disc list-inside space-y-2">
-                <li><strong>On iPhone (Safari):</strong> Tap the <strong>Share</strong> icon, scroll down, and select <strong>"Add to Home Screen"</strong>.</li>
-                <li><strong>On Android (Chrome):</strong> Tap the <strong>three-dot menu</strong> icon and select <strong>"Install app"</strong> or "Add to Home Screen".</li>
-            </ul>
+                <li><strong>On iPhone (Safari):<\/strong> Tap the <strong>Share<\/strong> icon, scroll down, and select <strong>"Add to Home Screen"<\/strong>.<\/li>
+                <li><strong>On Android (Chrome):<\/strong> Tap the <strong>three-dot menu<\/strong> icon and select <strong>"Install app"<\/strong> or "Add to Home Screen".<\/li>
+            <\/ul>
 
-            <h3 class="font-semibold text-lg text-blue-400">2. First-Time Setup (Crucial)</h3>
-            <p>The first time you open the app, you must configure your settings.</p>
+            <h3 class="font-semibold text-lg text-blue-400">2. First-Time Setup (Crucial)<\/h3>
+            <p>The first time you open the app, you must configure your settings.<\/p>
             <ol class="list-decimal list-inside space-y-1">
-                <li>Tap the <strong>Settings icon</strong> (gear) in the top-right corner.</li>
-                <li>Fill in all the fields. Your administrator will provide a special link that pre-fills the **Google Sheet URL** for you.</li>
-                <li>Set both a **Normal PIN** and a separate **Duress PIN**.</li>
-                <li>Tap <strong>Save Settings</strong>.</li>
-            </ol>
+                <li>Tap the <strong>Settings icon<\/strong> (gear) in the top-right corner.<\/li>
+                <li>Fill in all the fields. Your administrator will provide a special link that pre-fills the **Google Sheet URL** for you.<\/li>
+                <li>Set both a **Normal PIN** and a separate **Duress PIN**.<\/li>
+                <li>Tap <strong>Save Settings<\/strong>.<\/li>
+            <\/ol>
 
-            <h3 class="font-semibold text-lg text-blue-400">3. Using the App for a Visit</h3>
+            <h3 class="font-semibold text-lg text-blue-400">3. Using the App for a Visit<\/h3>
              <ol class="list-decimal list-inside space-y-1">
-                <li><strong>Select a Location:</strong> Tap a location from the list.</li>
-                <li><strong>Set Duration:</strong> Use the slider to set how long you expect to be at the location.</li>
-                <li><strong>Start Your Visit:</strong> Press and hold the green <strong>"ON SITE"</strong> button for 1.5 seconds. The screen will lock, and your countdown timer will begin.</li>
-            </ol>
+                <li><strong>Select a Location:<\/strong> Tap a location from the list.<\/li>
+                <li><strong>Set Duration:<\/strong> Use the slider to set how long you expect to be at the location.<\/li>
+                <li><strong>Start Your Visit:<\/strong> Press and hold the green <strong>"ON SITE"<\/strong> button for 1.5 seconds. The screen will lock, and your countdown timer will begin.<\/li>
+            <\/ol>
             
-            <h3 class="font-semibold text-lg text-blue-400">4. Special Note: GPS Tracking</h3>
-            <p>For GPS tracking to work reliably (either for the "Travelling" location or if you become overdue), the app must be **open on your screen**. If you lock your phone or switch to another app, GPS updates may stop.</p>
+            <h3 class="font-semibold text-lg text-blue-400">4. Special Note: GPS Tracking<\/h3>
+            <p>For GPS tracking to work reliably (either for the "Travelling" location or if you become overdue), the app must be **open on your screen**. If you lock your phone or switch to another app, GPS updates may stop.<\/p>
 
 
-             <h3 class="font-semibold text-lg text-blue-400">5. While On-Site</h3>
+             <h3 class="font-semibold text-lg text-blue-400">5. While On-Site<\/h3>
              <ul class="list-disc list-inside space-y-2">
-                <li><strong>Extend Time:</strong> Press and hold the <strong>"Extend 10 Mins"</strong> button for 1.5 seconds and enter your PIN.</li>
-                <li><strong>Depart Safely:</strong> When you are finished, press and hold the <strong>"DEPART"</strong> button for 1.5 seconds.</li>
-                <li><strong>Panic Alert (SOS):</strong> In an emergency, **triple-tap the red "SOS" button** to send an immediate alert.</li>
-            </ul>
+                <li><strong>Extend Time:<\/strong> Press and hold the <strong>"Extend 10 Mins"<\/strong> button for 1.5 seconds and enter your PIN.<\/li>
+                <li><strong>Depart Safely:<\/strong> When you are finished, press and hold the <strong>"DEPART"<\/strong> button for 1.5 seconds.<\/li>
+                <li><strong>Panic Alert (SOS):<\/strong> In an emergency, **triple-tap the red "SOS" button** to send an immediate alert.<\/li>
+            <\/ul>
             
-             <h3 class="font-semibold text-lg text-blue-400">6. Alerts & Duress</h3>
+             <h3 class="font-semibold text-lg text-blue-400">6. Alerts & Duress<\/h3>
              <ul class="list-disc list-inside space-y-2">
-                <li>The app will vibrate and chime before your time is up to remind you.</li>
-                <li>If you go overdue or miss an "Are you OK?" check-in, the system will automatically email your emergency contact.</li>
-                <li>**To Cancel an Alert:** Press and hold the <strong>"I AM SAFE"</strong> button for 1.5 seconds and enter your **normal PIN**.</li>
-                 <li>**Silent (Duress) Alert:** If you are being forced to cancel an alert against your will, enter your **Duress PIN** instead. The app will look like it has been cancelled, but it will silently send a high-priority alert to the monitor.</li>
-            </ul>
+                <li>The app will vibrate and chime before your time is up to remind you.<\/li>
+                <li>If you go overdue or miss an "Are you OK?" check-in, the system will automatically email your emergency contact.<\/li>
+                <li>**To Cancel an Alert:** Press and hold the <strong>"I AM SAFE"<\/strong> button for 1.5 seconds and enter your **normal PIN**.<\/li>
+                 <li>**Silent (Duress) Alert:** If you are being forced to cancel an alert against your will, enter your **Duress PIN** instead. The app will look like it has been cancelled, but it will silently send a high-priority alert to the monitor.<\/li>
+            <\/ul>
 
-            <h3 class="font-semibold text-lg text-blue-400 mt-4">Privacy Note</h3>
-            <p>Please be aware that by using this app, your personal details, emergency contact information, and your GPS location data are shared with your designated safety monitor and recorded in a central spreadsheet. This data is retained for safety and record-keeping purposes and will be periodically deleted by the system administrator.</p>
+            <h3 class="font-semibold text-lg text-blue-400 mt-4">Privacy Note<\/h3>
+            <p>Please be aware that by using this app, your personal details, emergency contact information, and your GPS location data are shared with your designated safety monitor and recorded in a central spreadsheet. This data is retained for safety and record-keeping purposes and will be periodically deleted by the system administrator.<\/p>
 
-        </div>
+        <\/div>
         <div class="mt-6 flex justify-end">
-            <button id="closeInfoModalBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Close</button>
-        </div>
-    </div>
+            <button id="closeInfoModalBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Close<\/button>
+        <\/div>
+    <\/div>
     <div id="pinModal" class="hidden bg-gray-800 rounded-lg shadow-xl w-full max-w-xs p-6 animate-fadeIn text-center">
-         <h2 id="pinModalTitle" class="text-xl font-bold mb-4">Enter PIN</h2>
-         <p id="pinModalPrompt" class="text-gray-400 mb-4">Please enter your 4-digit PIN to proceed.</p>
+         <h2 id="pinModalTitle" class="text-xl font-bold mb-4">Enter PIN<\/h2>
+         <p id="pinModalPrompt" class="text-gray-400 mb-4">Please enter your 4-digit PIN to proceed.<\/p>
          <input type="password" id="pinInput" maxlength="4" class="text-center text-3xl tracking-[1em] w-48 mx-auto bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" inputmode="numeric">
          <div class="mt-6 flex justify-end space-x-3">
-            <button id="cancelPinBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel</button>
-            <button id="confirmPinBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Confirm</button>
-         </div>
-    </div>
+            <button id="cancelPinBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel<\/button>
+            <button id="confirmPinBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Confirm<\/button>
+         <\/div>
+    <\/div>
     <div id="alertModal" class="hidden bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 animate-fadeIn text-center">
-        <h2 id="alertModalTitle" class="text-xl font-bold mb-2">Alert</h2>
-        <p id="alertModalMessage" class="text-gray-300 mb-6"></p>
-        <button id="alertModalOkBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-24">OK</button>
-    </div>
+        <h2 id="alertModalTitle" class="text-xl font-bold mb-2">Alert<\/h2>
+        <p id="alertModalMessage" class="text-gray-300 mb-6"><\/p>
+        <button id="alertModalOkBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-24">OK<\/button>
+    <\/div>
     <div id="checkinModal" class="hidden bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 animate-fadeIn text-center">
-        <h2 class="text-2xl font-bold text-yellow-400 mb-4">Are you OK?</h2>
-        <p class="text-lg text-gray-300 mb-4">Please confirm you are safe.</p>
-        <div id="checkinCountdown" class="text-6xl font-bold text-yellow-400 mb-6">2:00</div>
-        <button id="checkinOkBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-4 rounded-lg text-xl">I am OK</button>
-    </div>
-</div>
+        <h2 class="text-2xl font-bold text-yellow-400 mb-4">Are you OK?<\/h2>
+        <p class="text-lg text-gray-300 mb-4">Please confirm you are safe.<\/p>
+        <div id="checkinCountdown" class="text-6xl font-bold text-yellow-400 mb-6">2:00<\/div>
+        <button id="checkinOkBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-4 rounded-lg text-xl">I am OK<\/button>
+    <\/div>
+<\/div>
 <script>
     let pages, modals, locationList, arrivedBtn, durationSlider, durationDisplay, infoBtn, settingsBtn, closeSettingsBtn, addLocationBtn, saveSettingsBtn, closeInfoModalBtn, cancelLocationBtn, saveLocationBtn, deleteLocationBtn, useCurrentLocationBtn, panicBtn, iamSafeBtn, departBtn, extendBtn, pinInput, confirmPinBtn, cancelPinBtn, alertModalOkBtn, checkinOkBtn;
     let state = { settings: { workerName: '', workerPhone: '', emergencyName: '', emergencyPhone: '', emergencyEmail: '', escalationName: '', escalationPhone: '', escalationEmail: '', pinCode: '', duressPin: '', googleSheetUrl: '' }, locations: [], selectedLocationId: null, visitDurationMinutes: 0, activeVisit: null };
@@ -516,7 +558,7 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
                 case 'safe': synth.triggerAttackRelease("C5", "8n", now); if ('vibrate' in navigator) navigator.vibrate([50, 50, 50]); break;
                 case 'warning': synth.triggerAttackRelease("E5", "16n", now); synth.triggerAttackRelease("G5", "16n", now + 0.2); if ('vibrate' in navigator) navigator.vibrate([800, 200, 800]); break;
                 case 'panic': synth.triggerAttackRelease("G5", "16n", now); synth.triggerAttackRelease("G5", "16n", now + 0.1); synth.triggerAttackRelease("G5", "16n", now + 0.2); if ('vibrate' in navigator) navigator.vibrate([200, 100, 200, 100, 200]); break;
-                case 'checkin': if(synth.context.state === 'running'){ const osc = new Tone.Oscillator(440, "sine").connect(synth.toDestination()).start().stop("+0.1");} if ('vibrate' in navigator) navigator.vibrate(500); break;
+                case 'checkin': if(synth && synth.context.state === 'running'){ const osc = new Tone.Oscillator(440, "sine").connect(synth.toDestination()).start().stop("+0.1");} if ('vibrate' in navigator) navigator.vibrate(500); break;
             }
         };
         play();
@@ -538,8 +580,8 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
     function showAlert(title, message) { document.getElementById('alertModalTitle').textContent = title; document.getElementById('alertModalMessage').textContent = message; showModal('alert'); }
     function loadState() { const savedState = JSON.parse(localStorage.getItem('loneWorkerState')); if (savedState) { const mergedSettings = { ...state.settings, ...savedState.settings }; state = { ...state, ...savedState, settings: mergedSettings }; if (state.activeVisit) { state.activeVisit.startTime = new Date(state.activeVisit.startTime); state.activeVisit.anticipatedDepartureTime = new Date(state.activeVisit.anticipatedDepartureTime); } } const travellingExists = state.locations.some(loc => loc.name === 'Travelling'); if (!travellingExists) { state.locations.push({ id: 'loc_travelling_default', name: 'Travelling', address: 'GPS updates will be sent every 15 minutes.' }); saveState(); } const urlParams = new URLSearchParams(window.location.search); const scriptUrlFromParam = urlParams.get('scriptUrl'); if (scriptUrlFromParam && !state.settings.googleSheetUrl) { state.settings.googleSheetUrl = scriptUrlFromParam; saveState(); } }
     function saveState() { localStorage.setItem('loneWorkerState', JSON.stringify(state)); }
-    function renderLocations() { locationList.innerHTML = ''; if (state.locations.length === 0) { locationList.innerHTML = `<p class="text-gray-500 text-center">No locations added yet.</p>`; } state.locations.sort((a,b) => a.name.localeCompare(b.name)).forEach(loc => { const isSelected = loc.id === state.selectedLocationId; const locationEl = document.createElement('div'); locationEl.className = `selectable-item p-3 rounded-lg cursor-pointer border-2 transition-transform duration-100 ${isSelected ? 'bg-blue-900/50 border-blue-500' : 'bg-gray-800 border-transparent hover:border-gray-600'}`; locationEl.innerHTML = `<div class="flex justify-between items-center"><div><p class="font-semibold">${loc.name}</p><p class="text-sm text-gray-400">${loc.address}</p></div><button class="edit-location-btn p-2 rounded-full hover:bg-gray-700" data-id="${loc.id}"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg></button></div>`; locationList.appendChild(locationEl); }); }
-    function formatDuration(minutes) { if (minutes < 60) return `${minutes} mins`; const hours = Math.floor(minutes / 60); const mins = minutes % 60; return `${hours}h${mins > 0 ? ` ${mins}m` : ''}`; }
+    function renderLocations() { locationList.innerHTML = ''; if (state.locations.length === 0) { locationList.innerHTML = \`<p class="text-gray-500 text-center">No locations added yet.<\/p>\`; } state.locations.sort((a,b) => a.name.localeCompare(b.name)).forEach(loc => { const isSelected = loc.id === state.selectedLocationId; const locationEl = document.createElement('div'); locationEl.className = \`selectable-item p-3 rounded-lg cursor-pointer border-2 transition-transform duration-100 \${isSelected ? 'bg-blue-900/50 border-blue-500' : 'bg-gray-800 border-transparent hover:border-gray-600'}\`; locationEl.innerHTML = \`<div class="flex justify-between items-center"><div><p class="font-semibold">\${loc.name}<\/p><p class="text-sm text-gray-400">\${loc.address}<\/p><\/div><button class="edit-location-btn p-2 rounded-full hover:bg-gray-700" data-id="\${loc.id}"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"><\/path><\/svg><\/button><\/div>\`; locationList.appendChild(locationEl); }); }
+    function formatDuration(minutes) { if (minutes < 60) return \`\${minutes} mins\`; const hours = Math.floor(minutes / 60); const mins = minutes % 60; return \`\${hours}h\${mins > 0 ? \` \${mins}m\` : ''}\`; }
     function updateArrivedButtonState() { if (state.selectedLocationId && state.visitDurationMinutes > 0) { arrivedBtn.disabled = false; arrivedBtn.classList.remove('bg-gray-700', 'text-gray-400'); arrivedBtn.classList.add('bg-green-600', 'hover:bg-green-700', 'text-white'); arrivedBtn.textContent = 'ON SITE (Hold 1.5s)'; } else { arrivedBtn.disabled = true; arrivedBtn.classList.add('bg-gray-700', 'text-gray-400'); arrivedBtn.classList.remove('bg-green-600', 'hover:bg-green-700', 'text-white'); if (!state.selectedLocationId) { arrivedBtn.textContent = 'Select Location'; } else { arrivedBtn.textContent = 'Set Duration'; } } }
     function sendToGoogleSheet(data) {
         if (!state.settings.googleSheetUrl) {
@@ -572,11 +614,11 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
     function handleExtendLongPress() { withPinVerification((isDuress) => { if (isDuress) return; playSoundAndVibrate('extend'); extendVisit(); }); }
     function handleSafeLongPress() { withPinVerification(iamSafe, true); }
     function attemptStartVisit() { if ('geolocation' in navigator) { navigator.geolocation.getCurrentPosition( (position) => { console.log("GPS permission seems to be granted."); executeStartVisit(); }, (error) => { console.error("Initial GPS check failed:", error.message); showAlert("GPS Not Available", "Could not access location. Overdue alerts will use the manually entered address. Please check location settings."); executeStartVisit(); }, { timeout: 20000, enableHighAccuracy: true } ); } else { showAlert("GPS Not Supported", "Geolocation is not supported by your browser."); executeStartVisit(); } }
-    async function executeStartVisit() { if (!navigator.onLine) { showAlert("No Network", "A network connection is required to start a visit."); return; } if (navigator.getBattery) { const battery = await navigator.getBattery(); if (battery.level < 0.20 && !battery.charging) { showAlert("Low Battery", `Battery is at ${Math.floor(battery.level * 100)}%. It may not last for the duration of this visit.`); } } const location = state.locations.find(l => l.id === state.selectedLocationId); const now = new Date(); const anticipatedDepartureTime = new Date(now.getTime() + state.visitDurationMinutes * 60 * 1000); state.activeVisit = { locationId: location.id, startTime: now, anticipatedDepartureTime: anticipatedDepartureTime, arrivalTimeForSheet: now.toISOString(), alertState: 0, preWarningSent: false, lastGpsAttemptTime: null, lastTravelGpsTime: null, nextCheckinTime: CHECKIN_ENABLED ? now.getTime() + CHECKIN_INTERVAL * 60 * 1000 : null, batteryAlertSent: false }; if (location.name === 'Travelling') { state.activeVisit.lastTravelGpsTime = now.getTime(); tryGetGps("Started travelling"); showAlert("GPS Tracking Active", "For 'Travelling' to work best, please keep this app open on your screen during your journey."); } else { if (!localStorage.getItem('gpsWarningShown')) { showAlert("GPS Tracking Notice", "For reliable GPS tracking in an emergency, please keep this app open on your screen during your visit."); localStorage.setItem('gpsWarningShown', 'true'); } } saveState(); sendToGoogleSheet({ "Date": now.toLocaleDateString('en-CA'), "Location Name": location.name, "Location Address": location.address, "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Anticipated Departure Time": anticipatedDepartureTime.toISOString(), "Alarm Status": 'ON SITE', }); enterLockedScreen(); }
+    async function executeStartVisit() { if (!navigator.onLine) { showAlert("No Network", "A network connection is required to start a visit."); return; } if (navigator.getBattery) { const battery = await navigator.getBattery(); if (battery.level < 0.20 && !battery.charging) { showAlert("Low Battery", \`Battery is at \${Math.floor(battery.level * 100)}%. It may not last for the duration of this visit.\`); } } const location = state.locations.find(l => l.id === state.selectedLocationId); const now = new Date(); const anticipatedDepartureTime = new Date(now.getTime() + state.visitDurationMinutes * 60 * 1000); state.activeVisit = { locationId: location.id, startTime: now, anticipatedDepartureTime: anticipatedDepartureTime, arrivalTimeForSheet: now.toISOString(), alertState: 0, preWarningSent: false, lastGpsAttemptTime: null, lastTravelGpsTime: null, nextCheckinTime: CHECKIN_ENABLED ? now.getTime() + CHECKIN_INTERVAL * 60 * 1000 : null, batteryAlertSent: false }; if (location.name === 'Travelling') { state.activeVisit.lastTravelGpsTime = now.getTime(); tryGetGps("Started travelling"); showAlert("GPS Tracking Active", "For 'Travelling' to work best, please keep this app open on your screen during your journey."); } else { if (!localStorage.getItem('gpsWarningShown')) { showAlert("GPS Tracking Notice", "For reliable GPS tracking in an emergency, please keep this app open on your screen during your visit."); localStorage.setItem('gpsWarningShown', 'true'); } } saveState(); sendToGoogleSheet({ "Date": now.toLocaleDateString('en-CA'), "Location Name": location.name, "Location Address": location.address, "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Anticipated Departure Time": anticipatedDepartureTime.toISOString(), "Alarm Status": 'ON SITE', }); enterLockedScreen(); }
     function enterLockedScreen() { const location = state.locations.find(l => l.id === state.activeVisit.locationId); document.getElementById('lockedLocationName').textContent = location.name; updateLockedScreen(); navigate('locked'); visitInterval = setInterval(tick, 1000); }
-    function updateLockedScreen() { const now = new Date(); const remaining = state.activeVisit.anticipatedDepartureTime.getTime() - now.getTime(); if (remaining > 0) { const hours = Math.floor(remaining / 3600000); const minutes = Math.floor((remaining % 3600000) / 60000); const seconds = Math.floor((remaining % 60000) / 1000); document.getElementById('countdownTimer').textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`; document.getElementById('countdownTimer').classList.remove('text-red-500'); } else { const overdue = now.getTime() - state.activeVisit.anticipatedDepartureTime.getTime(); const hours = Math.floor(overdue / 3600000); const minutes = Math.floor((overdue % 3600000) / 60000); const seconds = Math.floor((overdue % 60000) / 1000); document.getElementById('countdownTimer').textContent = `+${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`; document.getElementById('countdownTimer').classList.add('text-red-500'); } document.getElementById('lockedAnticipatedTime').textContent = new Date(state.activeVisit.anticipatedDepartureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit'}); }
+    function updateLockedScreen() { const now = new Date(); const remaining = state.activeVisit.anticipatedDepartureTime.getTime() - now.getTime(); if (remaining > 0) { const hours = Math.floor(remaining / 3600000); const minutes = Math.floor((remaining % 3600000) / 60000); const seconds = Math.floor((remaining % 60000) / 1000); document.getElementById('countdownTimer').textContent = \`\${String(hours).padStart(2, '0')}:\${String(minutes).padStart(2, '0')}:\${String(seconds).padStart(2, '0')}\`; document.getElementById('countdownTimer').classList.remove('text-red-500'); } else { const overdue = now.getTime() - state.activeVisit.anticipatedDepartureTime.getTime(); const hours = Math.floor(overdue / 3600000); const minutes = Math.floor((overdue % 3600000) / 60000); const seconds = Math.floor((overdue % 60000) / 1000); document.getElementById('countdownTimer').textContent = \`+\${String(hours).padStart(2, '0')}:\${String(minutes).padStart(2, '0')}:\${String(seconds).padStart(2, '0')}\`; document.getElementById('countdownTimer').classList.add('text-red-500'); } document.getElementById('lockedAnticipatedTime').textContent = new Date(state.activeVisit.anticipatedDepartureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit'}); }
     function depart() { const now = new Date(); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Actual Departure Time": now.toISOString(), "Alarm Status": 'DEPARTED', }); endVisit(); }
-    function extendVisit() { state.activeVisit.anticipatedDepartureTime = new Date(state.activeVisit.anticipatedDepartureTime.getTime() + 10 * 60 * 1000); state.activeVisit.preWarningSent = false; saveState(); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Anticipated Departure Time": state.activeVisit.anticipatedDepartureTime.toISOString(), "Notes": `Extended 10 mins at ${new Date().toISOString()}`, }); updateLockedScreen(); }
+    function extendVisit() { state.activeVisit.anticipatedDepartureTime = new Date(state.activeVisit.anticipatedDepartureTime.getTime() + 10 * 60 * 1000); state.activeVisit.preWarningSent = false; saveState(); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Anticipated Departure Time": state.activeVisit.anticipatedDepartureTime.toISOString(), "Notes": \`Extended 10 mins at \${new Date().toISOString()}\`, }); updateLockedScreen(); }
     function iamSafe(isDuress) { 
         const now = new Date();
         if (isDuress) {
@@ -589,19 +631,21 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
         endVisit(); 
     }
     function endVisit() { clearInterval(visitInterval); state.activeVisit = null; state.selectedLocationId = null; state.visitDurationMinutes = 0; durationSlider.value = 0; durationDisplay.textContent = formatDuration(0); saveState(); navigate('main'); renderLocations(); updateArrivedButtonState(); document.getElementById('alertActiveContainer').classList.add('hidden'); document.getElementById('normalButtonsContainer').classList.remove('hidden'); }
-    function tryGetGps(notePrefix = "Overdue GPS") { state.activeVisit.lastGpsAttemptTime = new Date().getTime(); navigator.geolocation.getCurrentPosition( (position) => { const { latitude, longitude } = position.coords; sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Last Known GPS": `${latitude},${longitude}`, "GPS Timestamp": new Date().toISOString(), "Notes": `${notePrefix}: Successfully retrieved GPS.` }); }, (error) => { console.error("GPS Error:", error); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Notes": `${notePrefix}: Failed to retrieve GPS.` }); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 } ); }
-    async function tick() { if (!state.activeVisit) { clearInterval(visitInterval); return; } updateLockedScreen(); const now = new Date().getTime(); const departureTime = state.activeVisit.anticipatedDepartureTime.getTime(); const remainingMinutes = (departureTime - now) / 60000; if (remainingMinutes <= 2 && remainingMinutes > 0 && !state.activeVisit.preWarningSent) { state.activeVisit.preWarningSent = true; playSoundAndVibrate('warning'); } const location = state.locations.find(l => l.id === state.activeVisit.locationId); if (location && location.name === 'Travelling') { const fifteenMinutes = 15 * 60 * 1000; if (!state.activeVisit.lastTravelGpsTime || (now - state.activeVisit.lastTravelGpsTime) >= fifteenMinutes) { tryGetGps("15 minute travelling update"); state.activeVisit.lastTravelGpsTime = now; } } const overdueMinutes = (now - departureTime) / 60000; if (overdueMinutes > 0) { if (overdueMinutes >= (FIRST_ALERT_MINUTES - PRE_ALERT_OFFSET) && state.activeVisit.alertState < 1.5) { state.activeVisit.alertState = 1.5; playSoundAndVibrate('warning'); tryGetGps("Pre-alert GPS check"); } if (state.activeVisit.lastGpsAttemptTime && (now - state.activeVisit.lastGpsAttemptTime) > 20 * 60 * 1000) { tryGetGps("Recurring overdue check"); } if (overdueMinutes >= FIRST_ALERT_MINUTES && state.activeVisit.alertState < 2) { state.activeVisit.alertState = 2; sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Alarm Status": 'ALERT SENT' }); document.getElementById('alertActiveContainer').classList.remove('hidden'); document.getElementById('normalButtonsContainer').classList.add('hidden'); } } if (CHECKIN_ENABLED && state.activeVisit.nextCheckinTime && now >= state.activeVisit.nextCheckinTime) { triggerCheckin(); state.activeVisit.nextCheckinTime = null; } if (navigator.getBattery && !state.activeVisit.batteryAlertSent) { const battery = await navigator.getBattery(); if (battery.level < 0.15 && !battery.charging) { sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Notes": `LOW BATTERY WARNING: ${Math.floor(battery.level * 100)}%` }); state.activeVisit.batteryAlertSent = true; saveState(); } } saveState(); }
-    function triggerPanicAlert() { playSoundAndVibrate('panic'); showAlert("PANIC ALERT SENT", "An immediate alert has been sent to your emergency contact."); const sendPanic = (gpsData) => { const data = { "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Alarm Status": 'EMERGENCY - PANIC BUTTON', "Notes": 'Panic button activated by worker.' }; if (gpsData) { data["Last Known GPS"] = `${gpsData.latitude},${longitude}`; data["GPS Timestamp"] = new Date().toISOString(); data.Notes += ' GPS successfully retrieved.'; } else { data.Notes += ' Failed to retrieve GPS on panic.'; } sendToGoogleSheet(data); document.getElementById('alertActiveContainer').classList.remove('hidden'); document.getElementById('normalButtonsContainer').classList.add('hidden'); }; if ('geolocation' in navigator) { navigator.geolocation.getCurrentPosition( (position) => sendPanic(position.coords), () => sendPanic(null), { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 } ); } else { sendPanic(null); } }
+    function tryGetGps(notePrefix = "Overdue GPS") { state.activeVisit.lastGpsAttemptTime = new Date().getTime(); navigator.geolocation.getCurrentPosition( (position) => { const { latitude, longitude } = position.coords; sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Last Known GPS": \`\${latitude},\${longitude}\`, "GPS Timestamp": new Date().toISOString(), "Notes": \`\${notePrefix}: Successfully retrieved GPS.\` }); }, (error) => { console.error("GPS Error:", error); sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Notes": \`\${notePrefix}: Failed to retrieve GPS.\` }); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 } ); }
+    async function tick() { if (!state.activeVisit) { clearInterval(visitInterval); return; } updateLockedScreen(); const now = new Date().getTime(); const departureTime = state.activeVisit.anticipatedDepartureTime.getTime(); const remainingMinutes = (departureTime - now) / 60000; if (remainingMinutes <= 2 && remainingMinutes > 0 && !state.activeVisit.preWarningSent) { state.activeVisit.preWarningSent = true; playSoundAndVibrate('warning'); } const location = state.locations.find(l => l.id === state.activeVisit.locationId); if (location && location.name === 'Travelling') { const fifteenMinutes = 15 * 60 * 1000; if (!state.activeVisit.lastTravelGpsTime || (now - state.activeVisit.lastTravelGpsTime) >= fifteenMinutes) { tryGetGps("15 minute travelling update"); state.activeVisit.lastTravelGpsTime = now; } } const overdueMinutes = (now - departureTime) / 60000; if (overdueMinutes > 0) { if (overdueMinutes >= (FIRST_ALERT_MINUTES - PRE_ALERT_OFFSET) && state.activeVisit.alertState < 1.5) { state.activeVisit.alertState = 1.5; playSoundAndVibrate('warning'); tryGetGps("Pre-alert GPS check"); } if (state.activeVisit.lastGpsAttemptTime && (now - state.activeVisit.lastGpsAttemptTime) > 20 * 60 * 1000) { tryGetGps("Recurring overdue check"); } if (overdueMinutes >= FIRST_ALERT_MINUTES && state.activeVisit.alertState < 2) { state.activeVisit.alertState = 2; sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Alarm Status": 'ALERT SENT' }); document.getElementById('alertActiveContainer').classList.remove('hidden'); document.getElementById('normalButtonsContainer').classList.add('hidden'); } } if (CHECKIN_ENABLED && state.activeVisit.nextCheckinTime && now >= state.activeVisit.nextCheckinTime) { triggerCheckin(); state.activeVisit.nextCheckinTime = null; } if (navigator.getBattery && !state.activeVisit.batteryAlertSent) { try {const battery = await navigator.getBattery(); if (battery.level < 0.15 && !battery.charging) { sendToGoogleSheet({ "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Notes": \`LOW BATTERY WARNING: \${Math.floor(battery.level * 100)}%\` }); state.activeVisit.batteryAlertSent = true; saveState(); } } catch(e){ console.log("Battery API not supported or error:", e)} } saveState(); }
+    function triggerPanicAlert() { playSoundAndVibrate('panic'); showAlert("PANIC ALERT SENT", "An immediate alert has been sent to your emergency contact."); const sendPanic = (gpsData) => { const data = { "Arrival Time": state.activeVisit.arrivalTimeForSheet, "Alarm Status": 'EMERGENCY - PANIC BUTTON', "Notes": 'Panic button activated by worker.' }; if (gpsData) { data["Last Known GPS"] = \`\${gpsData.latitude},\${gpsData.longitude}\`; data["GPS Timestamp"] = new Date().toISOString(); data.Notes += ' GPS successfully retrieved.'; } else { data.Notes += ' Failed to retrieve GPS on panic.'; } sendToGoogleSheet(data); document.getElementById('alertActiveContainer').classList.remove('hidden'); document.getElementById('normalButtonsContainer').classList.add('hidden'); }; if ('geolocation' in navigator) { navigator.geolocation.getCurrentPosition( (position) => sendPanic(position.coords), () => sendPanic(null), { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 } ); } else { sendPanic(null); } }
     function triggerCheckin() {
         showModal('checkin');
         let remaining = 120;
         const countdownEl = document.getElementById('checkinCountdown');
-        checkinIntervalId = setInterval(() => playSoundAndVibrate('checkin'), 5000);
+        countdownEl.textContent = "2:00"; // Reset display
+        playSoundAndVibrate('checkin'); // Play initial sound
+        checkinIntervalId = setInterval(() => playSoundAndVibrate('checkin'), 5000); // Repeat sound
         checkinCountdownInterval = setInterval(() => {
             remaining--;
             const minutes = Math.floor(remaining / 60);
             const seconds = remaining % 60;
-            countdownEl.textContent = `${minutes}:${String(seconds).padStart(2, '0')}`;
+            countdownEl.textContent = \`\${minutes}:\${String(seconds).padStart(2, '0')}\`;
             if (remaining <= 0) {
                 clearInterval(checkinCountdownInterval);
                 clearInterval(checkinIntervalId);
@@ -621,7 +665,7 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
     }
     function initEventListeners() {
         document.body.addEventListener('pointerdown', initAudio, { once: true });
-        settingsBtn.addEventListener('click', () => { Object.keys(state.settings).forEach(key => { const input = document.getElementById(key); if (input) { input.value = state.settings[key]; if (key === 'googleSheetUrl' && input.value) { input.disabled = true; input.classList.add('bg-gray-800', 'text-gray-500'); } } }); navigate('settings'); });
+        settingsBtn.addEventListener('click', () => { Object.keys(state.settings).forEach(key => { const input = document.getElementById(key); if (input) { input.value = state.settings[key]; if (key === 'googleSheetUrl' && input.value) { input.disabled = true; input.classList.add('bg-gray-700', 'text-gray-500'); } else { input.disabled = false; input.classList.remove('bg-gray-700', 'text-gray-500'); } } }); navigate('settings'); });
         closeSettingsBtn.addEventListener('click', () => navigate('main'));
         infoBtn.addEventListener('click', () => showModal('info'));
         closeInfoModalBtn.addEventListener('click', hideModals);
@@ -635,29 +679,34 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
                 e.stopPropagation(); 
                 const locId = editBtn.dataset.id; 
                 const location = state.locations.find(l => l.id === locId); 
+                if (!location) return; // Prevent error if location deleted
                 showModal('location', () => { 
                     document.getElementById('locationModalTitle').textContent = 'Edit Location'; 
                     document.getElementById('locationName').value = location.name; 
                     document.getElementById('locationAddress').value = location.address; 
-                    document.getElementById('deleteLocationBtn').classList.remove('hidden'); 
+                    // Only show delete for non-default locations
+                    document.getElementById('deleteLocationBtn').classList.toggle('hidden', locId === 'loc_travelling_default');
                     document.querySelector('#saveLocationBtn').dataset.id = locId; 
                     document.querySelector('#deleteLocationBtn').dataset.id = locId; 
                 }); 
             } else {
                 const item = e.target.closest('.selectable-item');
                 if (item) {
-                    const locId = item.querySelector('.edit-location-btn').dataset.id;
-                    state.selectedLocationId = locId; 
-                    if('vibrate' in navigator) navigator.vibrate(20);
-                    renderLocations(); 
-                    updateArrivedButtonState();
+                    const editButtonInside = item.querySelector('.edit-location-btn');
+                    if (editButtonInside) {
+                        const locId = editButtonInside.dataset.id;
+                        state.selectedLocationId = locId; 
+                        if('vibrate' in navigator) navigator.vibrate(20);
+                        renderLocations(); 
+                        updateArrivedButtonState();
+                    }
                 }
             }
         });
         cancelLocationBtn.addEventListener('click', hideModals);
-        saveLocationBtn.addEventListener('click', () => { const id = document.querySelector('#saveLocationBtn').dataset.id; const name = document.getElementById('locationName').value.trim(); const address = document.getElementById('locationAddress').value.trim(); if (!name || !address) { showAlert("Missing Info", "Please provide both a name and an address for the location."); return; } if (id) { const index = state.locations.findIndex(l => l.id === id); state.locations[index] = { ...state.locations[index], name, address }; } else { state.locations.push({ id: `loc_${Date.now()}`, name, address }); } saveState(); renderLocations(); hideModals(); });
-        deleteLocationBtn.addEventListener('click', (e) => { const id = e.target.dataset.id; if (id === 'loc_travelling_default') { showAlert('Cannot Delete', 'The "Travelling" location cannot be deleted.'); return; } state.locations = state.locations.filter(l => l.id !== id); if (state.selectedLocationId === id) { state.selectedLocationId = null; } saveState(); renderLocations(); hideModals(); });
-        useCurrentLocationBtn.addEventListener('click', () => { if (!navigator.geolocation) { showAlert("Not Supported", "Geolocation is not supported by your browser."); return; } navigator.geolocation.getCurrentPosition( (position) => { const { latitude, longitude } = position.coords; fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`).then(res => res.json()).then(data => { document.getElementById('locationAddress').value = data.display_name || `${latitude}, ${longitude}`; }).catch(() => { showAlert("Error", "Could not fetch address. Using coordinates instead."); document.getElementById('locationAddress').value = `${latitude}, ${longitude}`; }); }, () => showAlert("Error", "Unable to retrieve your location.") ); });
+        saveLocationBtn.addEventListener('click', () => { const id = document.querySelector('#saveLocationBtn').dataset.id; const name = document.getElementById('locationName').value.trim(); const address = document.getElementById('locationAddress').value.trim(); if (!name || !address) { showAlert("Missing Info", "Please provide both a name and an address for the location."); return; } if (id) { const index = state.locations.findIndex(l => l.id === id); if(index > -1) { state.locations[index] = { ...state.locations[index], name, address }; } } else { state.locations.push({ id: \`loc_\${Date.now()}\`, name, address }); } saveState(); renderLocations(); hideModals(); });
+        deleteLocationBtn.addEventListener('click', (e) => { const id = e.target.dataset.id; if (id === 'loc_travelling_default') { showAlert('Cannot Delete', 'The "Travelling" location cannot be deleted.'); return; } state.locations = state.locations.filter(l => l.id !== id); if (state.selectedLocationId === id) { state.selectedLocationId = null; updateArrivedButtonState(); } saveState(); renderLocations(); hideModals(); });
+        useCurrentLocationBtn.addEventListener('click', () => { if (!navigator.geolocation) { showAlert("Not Supported", "Geolocation is not supported by your browser."); return; } navigator.geolocation.getCurrentPosition( (position) => { const { latitude, longitude } = position.coords; fetch(\`https://nominatim.openstreetmap.org/reverse?format=json&lat=\${latitude}&lon=\${longitude}\`).then(res => res.json()).then(data => { document.getElementById('locationAddress').value = data.display_name || \`\${latitude}, \${longitude}\`; }).catch(() => { showAlert("Error", "Could not fetch address. Using coordinates instead."); document.getElementById('locationAddress').value = \`\${latitude}, \${longitude}\`; }); }, () => showAlert("Error", "Unable to retrieve your location.") ); });
         durationSlider.addEventListener('input', (e) => { state.visitDurationMinutes = DURATION_STEPS[parseInt(e.target.value)]; durationDisplay.textContent = formatDuration(state.visitDurationMinutes); updateArrivedButtonState(); });
         let tapCount = 0; let tapTimer = null; panicBtn.addEventListener('click', () => { tapCount++; if (tapCount === 1) { tapTimer = setTimeout(() => { tapCount = 0; }, 1500); } if (tapCount === 3) { clearTimeout(tapTimer); tapCount = 0; triggerPanicAlert(); } });
         
@@ -668,21 +717,26 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
             const start = (e) => {
                 if (element.disabled) return;
                 e.preventDefault();
-                if (e.type === 'touchstart') { startX = e.touches[0].clientX; startY = e.touches[0].clientY; }
+                if (e.touches && e.touches.length > 0) { startX = e.touches[0].clientX; startY = e.touches[0].clientY; } else if (e.clientX && e.clientY) { startX = e.clientX; startY = e.clientY;} // Handle mouse events
                 element.classList.add('pressing');
                 timer = setTimeout(() => { if (timer) { callback(); } clearTimeout(timer); timer = null; element.classList.remove('pressing'); }, duration);
             };
             const cancel = () => { clearTimeout(timer); timer = null; element.classList.remove('pressing'); };
             const move = (e) => {
-                if (timer && e.type === 'touchmove') {
-                    const deltaX = Math.abs(e.touches[0].clientX - startX);
-                    const deltaY = Math.abs(e.touches[0].clientY - startY);
+                if (timer) {
+                    let currentX, currentY;
+                    if (e.touches && e.touches.length > 0) { currentX = e.touches[0].clientX; currentY = e.touches[0].clientY; } else if (e.clientX && e.clientY) { currentX = e.clientX; currentY = e.clientY;} // Handle mouse events
+                    else { return; } // No coordinates found
+
+                    const deltaX = Math.abs(currentX - startX);
+                    const deltaY = Math.abs(currentY - startY);
                     if (deltaX > tolerance || deltaY > tolerance) { cancel(); }
                 }
             };
             element.addEventListener('mousedown', start);
             element.addEventListener('mouseup', cancel);
             element.addEventListener('mouseleave', cancel);
+            element.addEventListener('mousemove', move); // Handle mouse move
             element.addEventListener('touchstart', start, { passive: false });
             element.addEventListener('touchend', cancel);
             element.addEventListener('touchcancel', cancel);
@@ -726,22 +780,22 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
         Object.keys(pages).forEach(key => { if (pages[key] && !pages[key].classList.contains('active')) { pages[key].classList.add('hidden'); } });
     }
         window.addEventListener('load', init);
-    </script>
-</body>
-</html>
+    <\/script>
+<\/body>
+<\/html>
 `;
 
             // MONITOR APP (FILE 3 - MODIFIED)
-            document.getElementById('monitor_app_template').textContent = `
+            document.getElementById('monitor_app_template-tpl').innerHTML = `
 <!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LWS Monitor</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com"><\/script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"><\/script>
     <style>
 body { font-family: 'Inter', sans-serif; }
 @keyframes flash-red {
@@ -754,76 +808,76 @@ body { font-family: 'Inter', sans-serif; }
 }
 .flashing-alert { animation: flash-red 1s infinite; }
 .flashing-duress { animation: flash-purple 1s infinite; }
-</style>
-</head>
+<\/style>
+<\/head>
 <body class="bg-gray-800 text-white h-full overflow-hidden">
 
 <div id="setupPage" class="h-full flex items-center justify-center p-4 bg-gray-900">
     <div class="w-full max-w-md text-center">
-        <h1 class="text-3xl font-bold text-blue-400 mb-4">Monitoring Dashboard Setup</h1>
-        <p class="text-gray-400 mb-6">Enter the Google Sheet Web App URL and the Secret Key to begin monitoring.</p>
+        <h1 class="text-3xl font-bold text-blue-400 mb-4">Monitoring Dashboard Setup<\/h1>
+        <p class="text-gray-400 mb-6">Enter the Google Sheet Web App URL and the Secret Key to begin monitoring.<\/p>
         <div class="space-y-4">
             <div>
-                <label for="googleSheetUrl" class="sr-only">Google Sheet Web App URL</label>
+                <label for="googleSheetUrl" class="sr-only">Google Sheet Web App URL<\/label>
                 <input type="url" id="googleSheetUrl" class="block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Paste Web App URL here">
-            </div>
+            <\/div>
             <div>
-                <label for="secretKey" class="sr-only">Secret Key</label>
+                <label for="secretKey" class="sr-only">Secret Key<\/label>
                 <input type="password" id="secretKey" class="block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-3 px-4 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Enter Secret Key">
-            </div>
-            <button id="saveUrlBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Start Monitoring</button>
-        </div>
-    </div>
-</div>
+            <\/div>
+            <button id="saveUrlBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Start Monitoring<\/button>
+        <\/div>
+    <\/div>
+<\/div>
 
 <div id="dashboardPage" class="h-full flex-col hidden">
     <header class="flex-shrink-0 bg-gray-900 shadow-lg z-10" style="-webkit-app-region: drag">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
-                <h1 class="text-2xl font-bold text-blue-400">Lone Worker Monitor</h1>
+                <h1 class="text-2xl font-bold text-blue-400">Lone Worker Monitor<\/h1>
                 <div class="flex items-center space-x-2">
-                    <span id="statusIndicator" class="h-3 w-3 rounded-full bg-gray-500" title="Connection Status"></span>
-                    <span id="lastUpdated" class="text-sm text-gray-500"></span>
-                    <button id="resetUrlBtn" class="p-2 rounded-full hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.82l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2.82l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
-                </div>
-            </div>
-        </div>
-    </header>
+                    <span id="statusIndicator" class="h-3 w-3 rounded-full bg-gray-500" title="Connection Status"><\/span>
+                    <span id="lastUpdated" class="text-sm text-gray-500"><\/span>
+                    <button id="resetUrlBtn" class="p-2 rounded-full hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.82l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2.82l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><\/button>
+                <\/div>
+            <\/div>
+        <\/div>
+    <\/header>
     <main class="flex-1 overflow-y-auto p-4">
         <div id="sizeWarningBanner" class="hidden bg-yellow-600 text-white p-3 rounded-lg mb-4 flex justify-between items-center">
-            <p><strong>Warning:</strong> The database exceeds 2,500 rows. Please advise the administrator to trim the database for optimal performance.</p>
-            <button id="closeWarningBtn" class="ml-4 text-2xl font-bold">×</button>
-        </div>
+            <p><strong>Warning:<\/strong> The database exceeds 2,500 rows. Please advise the administrator to trim the database for optimal performance.<\/p>
+            <button id="closeWarningBtn" class="ml-4 text-2xl font-bold">×<\/button>
+        <\/div>
         <div id="workerList" class="space-y-3">
-                    </div>
-    </main>
-</div>
+                    <\/div>
+    <\/main>
+<\/div>
 
 <div id="alertOverlay" class="hidden fixed inset-0 z-50 flex-col items-center justify-center flashing-alert text-white p-8">
-    <h2 class="text-8xl font-bold animate-pulse">ALERT!</h2>
+    <h2 class="text-8xl font-bold animate-pulse">ALERT!<\/h2>
     <div id="alertDetails" class="mt-8 text-center text-2xl bg-black bg-opacity-30 p-6 rounded-lg">
-            </div>
-    <button id="acknowledgeBtn" class="mt-12 bg-white text-red-700 font-bold py-4 px-8 rounded-lg text-3xl shadow-2xl">Acknowledge Alert</button>
-</div>
+            <\/div>
+    <button id="acknowledgeBtn" class="mt-12 bg-white text-red-700 font-bold py-4 px-8 rounded-lg text-3xl shadow-2xl">Acknowledge Alert<\/button>
+<\/div>
 
  <div id="modalBackdrop" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-40">
     <div id="alertModal" class="hidden bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
-         <h2 id="alertModalTitle" class="text-xl font-bold mb-2">Alert</h2>
-        <p id="alertModalMessage" class="text-gray-300 mb-6"></p>
-        <button id="alertModalOkBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-24">OK</button>
-    </div>
+         <h2 id="alertModalTitle" class="text-xl font-bold mb-2">Alert<\/h2>
+        <p id="alertModalMessage" class="text-gray-300 mb-6"><\/p>
+        <button id="alertModalOkBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-24">OK<\/button>
+    <\/div>
 
     <div id="resolveModal" class="hidden bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6">
-        <h2 class="text-xl font-bold mb-4 text-yellow-400">Resolve Alert</h2>
-        <p class="text-gray-300 mb-4">You are about to manually resolve the alert for <strong id="resolveWorkerName"></strong>. This action will clear their alert status and remove them from the dashboard.</p>
-        <p class="text-gray-400 mb-2 text-sm">To confirm, please type the worker's name:</p>
+        <h2 class="text-xl font-bold mb-4 text-yellow-400">Resolve Alert<\/h2>
+        <p class="text-gray-300 mb-4">You are about to manually resolve the alert for <strong id="resolveWorkerName"><\/strong>. This action will clear their alert status and remove them from the dashboard.<\/p>
+        <p class="text-gray-400 mb-2 text-sm">To confirm, please type the worker's name:<\/p>
         <input type="text" id="resolveConfirmInput" class="block w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-yellow-500 focus:border-yellow-500" autocomplete="off">
         <div class="mt-6 flex justify-end space-x-3">
-            <button id="cancelResolveBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel</button>
-            <button id="confirmResolveBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg" data-name="" data-arrival="">Confirm Resolve</button>
-        </div>
-    </div>
-    </div>
+            <button id="cancelResolveBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel<\/button>
+            <button id="confirmResolveBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg" data-name="" data-arrival="">Confirm Resolve<\/button>
+        <\/div>
+    <\/div>
+    <\/div>
 
 <script>
     // *** MODIFIED GLOBAL VARIABLES ***
@@ -846,22 +900,23 @@ body { font-family: 'Inter', sans-serif; }
     }
 
     // *** MODIFIED showModal/hideModals ***
-    function showModal(modal, onShow) { 
-        modalBackdrop.classList.remove('hidden'); 
-        modalBackdrop.classList.add('flex'); 
-        // Hide all modals first
-        alertModal.classList.add('hidden');
-        resolveModal.classList.add('hidden');
-        if(modal) { 
-            modal.classList.remove('hidden'); 
-        } 
-        if(onShow) onShow(); 
+    function showModal(modal, onShow) {
+        modalBackdrop.classList.remove('hidden');
+        modalBackdrop.classList.add('flex');
+        // Ensure all potentially visible modals are explicitly hidden first
+        const modalsToHide = [alertModal, resolveModal];
+        modalsToHide.forEach(m => m && m.classList.add('hidden'));
+
+        if(modal) {
+            modal.classList.remove('hidden');
+        }
+        if(onShow) onShow();
     }
-    function hideModals() { 
-        modalBackdrop.classList.add('hidden'); 
-        modalBackdrop.classList.remove('flex'); 
-        alertModal.classList.add('hidden'); 
-        resolveModal.classList.add('hidden');
+    function hideModals() {
+        modalBackdrop.classList.add('hidden');
+        modalBackdrop.classList.remove('flex');
+        const modalsToHide = [alertModal, resolveModal];
+        modalsToHide.forEach(m => m && m.classList.add('hidden'));
     }
 
     function showAlert(title, message) { 
@@ -871,13 +926,20 @@ body { font-family: 'Inter', sans-serif; }
         showModal(alertModal);
     }
     async function initAudio() {
-        if (alarm) return;
-        await Tone.start();
-        alarm = new Tone.Synth({ oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.1 } }).toDestination();
-        console.log("Audio context for alarm started.");
+        if (alarm || (Tone.context && Tone.context.state === 'running') ) return;
+       try {
+        await Tone.start();
+        alarm = new Tone.Synth({ oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.1 } }).toDestination();
+        console.log("Audio context for alarm started.");
+      } catch(e) {
+         console.error("Could not start audio context:", e);
+         // Optionally alert the user that audio might not work
+         // showAlert("Audio Error", "Could not initialize audio for alerts.");
+      }
     }
     function playUpdateSound() {
         initAudio().then(() => {
+          if (!alarm) return; // Audio context failed to start
             const now = Tone.now();
             alarm.triggerAttackRelease("A4", "16n", now);
             alarm.triggerAttackRelease("C5", "16n", now + 0.2);
@@ -885,20 +947,32 @@ body { font-family: 'Inter', sans-serif; }
     }
     function playAlarm(worker) {
         initAudio().then(() => {
-            if (window.electron) window.electron.sendAlert();
-            if (!alarm.loop) { alarm.loop = new Tone.Loop(time => { alarm.triggerAttackRelease("C5", "8n", time); }, "4n").start(0); }
-            Tone.Transport.start();
-            alertDetails.innerHTML = '<p class="font-bold text-4xl">' + worker['Worker Name'] + '</p><p>at ' + worker['Location Name'] + '</p><p class="mt-4 text-red-300 font-bold">' + 
-            worker['Alarm Status'] + '</p>';
+          if (!alarm) { // Audio context failed to start, still show visual alert
+             console.warn("Audio context not available, showing visual alert only.");
+             // Fall through to show visual alert without sound attempt
+          } else {
+              if (window.electron) window.electron.sendAlert();
+              if (!alarm.loop) { alarm.loop = new Tone.Loop(time => { alarm.triggerAttackRelease("C5", "8n", time); }, "4n").start(0); }
+              Tone.Transport.start();
+          }
+            // Always show visual alert
+            alertDetails.innerHTML = '<p class="font-bold text-4xl">' + worker['Worker Name'] + '<\/p><p>at ' + worker['Location Name'] + '<\/p><p class="mt-4 text-red-300 font-bold">' + 
+            (worker['Alarm Status'] ? worker['Alarm Status'].replace(/_/g, ' ') : 'Unknown Status') + '<\/p>';
             alertOverlay.classList.remove('hidden');
-            if (worker['Alarm Status'] === 'DURESS_CODE_ACTIVATED') { alertOverlay.classList.add('flashing-duress'); } else { alertOverlay.classList.remove('flashing-duress'); }
+            alertOverlay.classList.remove('flashing-duress'); // Reset class
+            alertOverlay.classList.remove('flashing-alert'); // Reset class
+            if (worker['Alarm Status'] === 'DURESS_CODE_ACTIVATED') { alertOverlay.classList.add('flashing-duress'); } else { alertOverlay.classList.add('flashing-alert'); } // Default to red flash
             acknowledgeBtn.dataset.arrivalTime = worker['Arrival Time'];
             acknowledgeBtn.dataset.workerName = worker['Worker Name'];
         });
     }
     function stopAlarm() {
-        if (Tone.Transport.state === 'started') { Tone.Transport.stop();
-            Tone.Transport.cancel(); if(alarm.loop) { alarm.loop.dispose(); alarm.loop = null; } }
+      if (alarm && alarm.loop && Tone.Transport.state === 'started') {
+          Tone.Transport.stop();
+          Tone.Transport.cancel();
+          alarm.loop.dispose();
+          alarm.loop = null;
+      }
         alertOverlay.classList.add('hidden');
     }
     function fetchData() {
@@ -906,8 +980,12 @@ body { font-family: 'Inter', sans-serif; }
         statusIndicator.classList.remove('bg-green-500', 'bg-red-500'); statusIndicator.classList.add('bg-yellow-500');
         const script = document.createElement('script');
         const callbackName = 'jsonp_callback_' + Date.now();
+      let scriptTimeout; // Timeout handle
+
         window[callbackName] = function(data) {
-            delete window[callbackName]; document.body.removeChild(script);
+          clearTimeout(scriptTimeout); // Clear timeout on success
+            delete window[callbackName];
+          try { document.body.removeChild(script); } catch(e) {}
             if (data.status === 'error' && data.message.includes('Access Denied')) {
                 console.error("Access Denied. Check Secret Key.");
                 statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500');
@@ -920,26 +998,37 @@ body { font-family: 'Inter', sans-serif; }
                 statusIndicator.classList.remove('bg-yellow-500', 'bg-red-500');
                 statusIndicator.classList.add('bg-green-500');
                 lastUpdatedEl.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
-                if (data.length >= 2500) { sizeWarningBanner.classList.remove('hidden'); }
+                sizeWarningBanner.classList.toggle('hidden', data.length < 2500); // More direct toggle
                 processData(data);
             } else {
                 console.error("Received non-array data, likely an error from the script:", data);
                 statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500');
                 lastUpdatedEl.textContent = 'Data error';
+              showAlert("Data Error", "Received unexpected data from the server. Check Apps Script logs.");
             }
         };
-        script.src = sheetUrl + '?callback=' + callbackName + '&token=' + encodeURIComponent(secretKey);
+        script.src = sheetUrl + '?callback=' + callbackName + '&token=' + encodeURIComponent(secretKey) + '&t=' + Date.now(); // Cache busting
         script.onerror = () => {
-            delete window[callbackName]; document.body.removeChild(script);
+          clearTimeout(scriptTimeout); // Clear timeout on error
+            delete window[callbackName];
+          try { document.body.removeChild(script); } catch(e) {}
             console.error("Fetch error: JSONP request failed. Check the URL and script deployment settings.");
             statusIndicator.classList.remove('bg-yellow-500', 'bg-green-500'); statusIndicator.classList.add('bg-red-500');
             lastUpdatedEl.textContent = 'Update failed';
-            showAlert( "Connection Failed", "Could not fetch data. This can be caused by an incorrect URL or if the Apps Script has not been correctly deployed. Please follow the setup instructions again carefully." );
+            // Avoid showing alert on every poll failure, maybe only first time or after several failures?
+          // showAlert( "Connection Failed", "Could not fetch data..." );
         };
         document.body.appendChild(script);
+
+       // Add a timeout for the JSONP request
+       scriptTimeout = setTimeout(() => {
+          if (window[callbackName]) { // Check if the callback has *not* executed yet
+              console.error("Fetch timeout: JSONP request took too long.");
+              script.onerror(); // Trigger the error handling
+          }
+       }, 15000); // 15 second timeout, matching poll interval
     }
     function processData(data) {
-        // *** MODIFIED activeStatuses (now includes resolved statuses to filter them out) ***
         const activeStatuses = ["ON SITE", "ALERT SENT", "MISSED_CHECKIN", "EMAIL_1_SENT", "EMAIL_2_SENT", "EMAIL_3_SENT", "EMERGENCY - PANIC BUTTON", "DURESS_CODE_ACTIVATED", "ESCALATION_SENT"];
         const activeWorkers = data.filter(worker => activeStatuses.includes(worker['Alarm Status']));
         const statusPriority = { "DURESS_CODE_ACTIVATED": 1, "EMERGENCY - PANIC BUTTON": 2, "ESCALATION_SENT": 3, "MISSED_CHECKIN": 4, "EMAIL_3_SENT": 5, "EMAIL_2_SENT": 6, "EMAIL_1_SENT": 7, "ALERT SENT": 8, "ON SITE": 9 };
@@ -948,43 +1037,51 @@ body { font-family: 'Inter', sans-serif; }
         checkForNewAlerts(activeWorkers);
     }
     function renderWorkers(workers) {
-        workerList.innerHTML = '';
-        if (workers.length === 0) { workerList.innerHTML = '<div class="text-center text-gray-500 mt-10"><p class="text-xl">No active workers found.</p><p>The dashboard is polling for updates.</p></div>'; return; }
+        workerList.innerHTML = ''; // Clear previous list
+        if (workers.length === 0) { workerList.innerHTML = '<div class="text-center text-gray-500 mt-10"><p class="text-xl">No active workers found.<\/p><p>The dashboard is polling for updates.<\/p><\/div>'; return; }
         workers.forEach(worker => {
-            let bgColor, textColor, borderColor, flashClass = '';
+            let bgColor = 'bg-gray-700', textColor = 'text-gray-300', borderColor = 'border-transparent', flashClass = '';
             switch(worker['Alarm Status']) {
                 case 'DURESS_CODE_ACTIVATED': bgColor = 'bg-purple-800'; textColor = 'text-white'; borderColor = 'border-purple-400'; flashClass = 'flashing-duress'; break;
-                case 'EMERGENCY - PANIC BUTTON': bgColor = 'bg-red-700'; textColor = 'text-white'; 
-                borderColor = 'border-red-400'; flashClass = 'flashing-alert'; break;
+                case 'EMERGENCY - PANIC BUTTON': bgColor = 'bg-red-700'; textColor = 'text-white'; borderColor = 'border-red-400'; flashClass = 'flashing-alert'; break;
                 case 'ESCALATION_SENT': case 'EMAIL_3_SENT': case 'EMAIL_2_SENT': case 'EMAIL_1_SENT': case 'ALERT SENT': case 'MISSED_CHECKIN': bgColor = 'bg-yellow-700'; textColor = 'text-white'; borderColor = 'border-yellow-400'; break;
-                default: bgColor = 'bg-gray-700'; textColor = 'text-gray-300'; borderColor = 'border-transparent';
+                // 'ON SITE' uses default values above
             }
-            const anticipatedTime = new Date(worker['Anticipated Departure Time']).toLocaleTimeString([], 
-            { hour: '2-digit', minute: '2-digit' });
+          // Format time safely, handle invalid dates
+          let anticipatedTimeStr = 'N/A';
+          try {
+             const anticipatedDate = new Date(worker['Anticipated Departure Time']);
+             if (!isNaN(anticipatedDate)) {
+                anticipatedTimeStr = anticipatedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+             }
+          } catch (e) { console.error("Error formatting date:", worker['Anticipated Departure Time'], e); }
+
             let locationLinkHtml = '';
             let contactDetailsHtml = '';
-            // *** NEW VARIABLE ***
             let resolveButtonHtml = '';
             const isAlertStatus = worker['Alarm Status'] !== 'ON SITE';
-            
+
             if (isAlertStatus) {
                 let linkUrl = '#';
                 let linkTitle = 'Location not available';
-                if (worker['Last Known GPS']) { linkUrl = 'http://maps.google.com/?q=' + worker['Last Known GPS'];
-                linkTitle = 'View last known GPS location';
-                } else if (worker['Location Address']) { linkUrl = 'http://maps.google.com/?q=' + encodeURIComponent(worker['Location Address']);
-                linkTitle = 'View initial location address'; }
-                if(linkUrl !== '#') { locationLinkHtml = '<a href="' + linkUrl + '" target="_blank" title="' + linkTitle + '" class="mt-1 inline-flex items-center text-sm text-blue-300 hover:text-blue-200"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>View Location</a>';
+                const gpsCoords = worker['Last Known GPS'];
+              const address = worker['Location Address'];
+                if (gpsCoords && gpsCoords.includes(',')) {
+                 linkUrl = \`https://www.google.com/maps?q=\${gpsCoords}\`;
+                 linkTitle = 'View last known GPS location';
+                } else if (address) {
+                 linkUrl = \`https://www.google.com/maps?q=\${encodeURIComponent(address)}\`;
+                 linkTitle = 'View initial location address';
+              }
+                if(linkUrl !== '#') { locationLinkHtml = \`<a href="\${linkUrl}" target="_blank" title="\${linkTitle}" class="mt-1 inline-flex items-center text-sm text-blue-300 hover:text-blue-200"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>View Location</a>\`;
                 }
                 
-                contactDetailsHtml = '<div class="mt-3 pt-2 border-t border-white/20 text-xs space-y-1">' +
-                    '<p>Worker: <a href="tel:' + worker['Worker Phone Number'] + '" class="text-blue-300 hover:text-blue-200">' + worker['Worker Phone Number'] + '</a></p>' +
-                    '<p>Contact: ' 
-                    + worker['Emergency Contact Name'] + ' - <a href="tel:' + worker['Emergency Contact Number'] + '" class="text-blue-300 hover:text-blue-200">' + worker['Emergency Contact Number'] + '</a></p>' +
-                '</div>';
-                
-                // *** NEW resolveButtonHtml ***
-                resolveButtonHtml = '<button class="resolve-alert-btn mt-3 w-full bg-green-700 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm" data-name="' + worker['Worker Name'] + '" data-arrival="' + worker['Arrival Time'] + '">Manually Resolve Alert</button>';
+                contactDetailsHtml = \`<div class="mt-3 pt-2 border-t border-white/20 text-xs space-y-1">
+                 <p>Worker: <a href="tel:\${worker['Worker Phone Number']}" class="text-blue-300 hover:text-blue-200">\${worker['Worker Phone Number'] || 'N/A'}</a></p>
+                 <p>Contact: \${worker['Emergency Contact Name'] || 'N/A'} - <a href="tel:\${worker['Emergency Contact Number']}" class="text-blue-300 hover:text-blue-200">\${worker['Emergency Contact Number'] || 'N/A'}</a></p>
+                </div>\`;
+
+                resolveButtonHtml = \`<button class="resolve-alert-btn mt-3 w-full bg-green-700 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm" data-name="\${worker['Worker Name']}" data-arrival="\${worker['Arrival Time']}">Manually Resolve Alert</button>\`;
             }
 
             let lowBatteryIcon = '';
@@ -993,23 +1090,21 @@ body { font-family: 'Inter', sans-serif; }
             }
 
             const card = document.createElement('div');
-            card.className = 'p-4 rounded-lg shadow-md ' + bgColor + ' ' + textColor + ' border-2 ' + borderColor + ' ' + flashClass;
-            
-            // *** MODIFIED card.innerHTML to include resolveButtonHtml ***
-            card.innerHTML = '<div class="flex justify-between items-start">' +
-                '<div class="flex-1 min-w-0">' +
-                '<p class="font-bold text-xl truncate">' + worker['Worker Name'] + lowBatteryIcon + '</p>' +
-                '<p class="text-sm truncate">' + worker['Location Name'] + '</p>' +
-                locationLinkHtml +
-                '</div>' +
-                '<div class="text-right flex-shrink-0 ml-4">' +
-                '<p class="font-semibold text-lg">' + worker['Alarm Status'].replace(/_/g, ' ') + '</p>' 
-                +
-                '<p class="text-sm">Due: ' + anticipatedTime + '</p>' +
-                '</div>' +
-                '</div>' +
-                contactDetailsHtml +
-                resolveButtonHtml; // Added here
+            card.className = \`p-4 rounded-lg shadow-md \${bgColor} \${textColor} border-2 \${borderColor} \${flashClass}\`;
+
+            card.innerHTML = \`<div class="flex justify-between items-start">
+                 <div class="flex-1 min-w-0">
+                  <p class="font-bold text-xl truncate">\${worker['Worker Name'] || 'Unknown Worker'}\${lowBatteryIcon}</p>
+                  <p class="text-sm truncate">\${worker['Location Name'] || 'Unknown Location'}</p>
+                  \${locationLinkHtml}
+                 </div>
+                 <div class="text-right flex-shrink-0 ml-4">
+                  <p class="font-semibold text-lg">\${(worker['Alarm Status'] || 'Unknown').replace(/_/g, ' ')}</p>
+                  <p class="text-sm">Due: \${anticipatedTimeStr}</p>
+                 </div>
+                </div>
+                \${contactDetailsHtml}
+                \${resolveButtonHtml}\`;
             workerList.appendChild(card);
         });
     }
@@ -1024,7 +1119,6 @@ body { font-family: 'Inter', sans-serif; }
             newStatuses[key] = newStatus;
 
             if (newStatus !== oldStatus) {
-                
                 if (criticalAlerts.includes(newStatus) && !criticalAlerts.includes(oldStatus)) {
                     console.log("NEW CRITICAL ALERT:", worker);
                     playAlarm(worker);
@@ -1037,45 +1131,46 @@ body { font-family: 'Inter', sans-serif; }
         lastKnownStatuses = newStatuses;
     }
     function acknowledgeAlert() {
-        stopAlarm();
+        stopAlarm(); // Stop local sound/visual
         const arrivalTime = acknowledgeBtn.dataset.arrivalTime;
         const workerName = acknowledgeBtn.dataset.workerName;
+      // Just send a note, don't change status
         const data = { "Arrival Time": arrivalTime, "Worker Name": workerName, Notes: 'Alert acknowledged by monitor at ' + new Date().toISOString() };
-        
-        // *** ORIGINAL FIX APPLIED HERE ***
+
         const formData = new FormData();
         for (const key in data) {
             formData.append(key, data[key]);
         }
-        fetch(sheetUrl, { 
-            method: 'POST', 
-            mode: 'no-cors', 
-            body: new URLSearchParams(formData) 
-        }).then(() => console.log("Acknowledgement sent.")).catch(err => console.error("Failed to send ack:", err));
-        // *** END OF FIX ***
+        fetch(sheetUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: new URLSearchParams(formData)
+        }).then(() => console.log("Acknowledgement note sent.")).catch(err => console.error("Failed to send ack note:", err));
     }
 
     // *** NEW FUNCTION: sendResolveAlert ***
     function sendResolveAlert(workerName, arrivalTime) {
-        const data = { 
-            "Arrival Time": arrivalTime, 
-            "Worker Name": workerName, 
-            "Alarm Status": "MONITOR_CLEARED_ALERT",
-            "Notes": 'Alert manually resolved by monitor at ' + new Date().toISOString() 
+        const data = {
+            "Arrival Time": arrivalTime,
+            "Worker Name": workerName,
+            "Alarm Status": "MONITOR_CLEARED_ALERT", // New status
+            "Notes": 'Alert manually resolved by monitor at ' + new Date().toISOString()
         };
-        
+
         const formData = new FormData();
         for (const key in data) {
             formData.append(key, data[key]);
         }
 
-        fetch(sheetUrl, { 
-            method: 'POST', 
-            mode: 'no-cors', 
-            body: new URLSearchParams(formData) 
+        fetch(sheetUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: new URLSearchParams(formData)
         }).then(() => {
             console.log("Resolve alert sent.");
             hideModals();
+            // Optional: Immediately remove the worker visually while waiting for next poll?
+            // Or just wait for fetchData() to update the list naturally.
             fetchData(); // Immediately refresh the dashboard
         }).catch(err => {
             console.error("Failed to send resolve alert:", err);
@@ -1094,13 +1189,16 @@ body { font-family: 'Inter', sans-serif; }
                 sheetUrl = url; 
                 secretKey = key;
                 navigate('dashboard'); 
-                fetchData(); 
-                pollingInterval = setInterval(fetchData, 15000); 
+              stopAlarm(); // Stop any previous alarm if resetting URL
+              lastKnownStatuses = {}; // Reset known statuses
+                fetchData(); // Fetch immediately
+              if (pollingInterval) clearInterval(pollingInterval); // Clear old interval
+                pollingInterval = setInterval(fetchData, 15000); // Start new polling 
             } else {
                 showAlert("Missing Info", "Please provide both the Web App URL and the Secret Key.");
             }
         });
-        resetUrlBtn.addEventListener('click', () => { if (confirm("Are you sure you want to reset the URL and Secret Key?")) { localStorage.removeItem('lwsMonitorUrl'); localStorage.removeItem('lwsMonitorKey'); sheetUrl = ''; secretKey = ''; clearInterval(pollingInterval); navigate('setup'); } });
+        resetUrlBtn.addEventListener('click', () => { if (confirm("Are you sure you want to reset the URL and Secret Key? This will stop monitoring.")) { localStorage.removeItem('lwsMonitorUrl'); localStorage.removeItem('lwsMonitorKey'); sheetUrl = ''; secretKey = ''; if (pollingInterval) clearInterval(pollingInterval); stopAlarm(); workerList.innerHTML = ''; lastKnownStatuses = {}; navigate('setup'); } });
         acknowledgeBtn.addEventListener('click', acknowledgeAlert);
         closeWarningBtn.addEventListener('click', () => sizeWarningBanner.classList.add('hidden'));
         alertModalOkBtn.addEventListener('click', hideModals);
@@ -1111,12 +1209,17 @@ body { font-family: 'Inter', sans-serif; }
             if (resolveBtn) {
                 const workerName = resolveBtn.dataset.name;
                 const arrivalTime = resolveBtn.dataset.arrival;
-                
+                if (!workerName || !arrivalTime) {
+                   console.error("Resolve button missing data attributes."); return;
+                }
+
                 showModal(resolveModal, () => {
                     resolveWorkerName.textContent = workerName;
                     resolveConfirmInput.value = '';
+                    resolveConfirmInput.placeholder = `Type '${workerName}' to confirm`;
                     confirmResolveBtn.dataset.name = workerName;
                     confirmResolveBtn.dataset.arrival = arrivalTime;
+                    resolveConfirmInput.focus(); // Focus input field
                 });
             }
         });
@@ -1128,12 +1231,22 @@ body { font-family: 'Inter', sans-serif; }
             const arrivalTime = confirmResolveBtn.dataset.arrival;
             const typedName = resolveConfirmInput.value;
 
-            if (typedName.trim() === expectedName) {
+            if (typedName.trim().toLowerCase() === expectedName.trim().toLowerCase()) { // Case-insensitive compare
                 sendResolveAlert(expectedName, arrivalTime);
             } else {
-                showAlert("Incorrect Name", "The name you typed does not match. Alert not resolved.");
-                resolveConfirmInput.value = '';
+                // Keep modal open, show feedback
+                resolveConfirmInput.classList.add('border-red-500');
+                resolveConfirmInput.value = ''; // Clear wrong input
+                setTimeout(() => resolveConfirmInput.classList.remove('border-red-500'), 1500); // Remove red border after a bit
+                // Optionally show a small text error message near the input
             }
+        });
+        // Allow Enter key to confirm resolve
+        resolveConfirmInput.addEventListener('keypress', function(event) {
+          if (event.key === 'Enter') {
+            event.preventDefault(); // Prevent default form submission if any
+            confirmResolveBtn.click(); // Trigger the confirm button click
+          }
         });
         // *** END OF NEW EVENT LISTENERS ***
     }
@@ -1174,21 +1287,22 @@ body { font-family: 'Inter', sans-serif; }
 
         if (sheetUrl && secretKey) {
             navigate('dashboard');
-            fetchData();
-            pollingInterval = setInterval(fetchData, 15000);
+            fetchData(); // Initial fetch
+            if (pollingInterval) clearInterval(pollingInterval); // Clear just in case
+            pollingInterval = setInterval(fetchData, 15000); // Start polling
         } else {
             navigate('setup');
         }
     }
 
     window.addEventListener('load', init);
-</script>
-</body>
-</html>
+<\/script>
+<\/body>
+<\/html>
 `;
 
             // APPS SCRIPT (FILE 4 - MODIFIED)
-            document.getElementById('apps_script_template').textContent = `
+            document.getElementById('apps_script_template-tpl').innerHTML = `
 // ##### --------------------------------------------------- #####
 // ##### Lone Worker Safety System - Google Apps Script Backend #####
 // ##### --------------------------------------------------- #####
@@ -1215,16 +1329,32 @@ function doGet(e) {
   }
 
   var data = sheet.getDataRange().getValues();
-  var headers = data.shift();
+  var headers = data.shift(); // Get headers (first row)
+  // Ensure headers exist before proceeding
+   if (!headers || headers.length === 0) {
+     Logger.log("Sheet appears to be empty or headers are missing.");
+     return ContentService
+       .createTextOutput(e.parameter.callback + '(' + JSON.stringify([]) + ')') // Return empty array for JSONP
+       .setMimeType(ContentService.MimeType.JAVASCRIPT);
+   }
+
   var json = data.map(function(row) {
     var obj = {};
     headers.forEach(function(header, i) {
-      obj[header] = row[i];
+      // Handle cases where row might be shorter than headers
+      obj[header] = (i < row.length) ? row[i] : "";
     });
     return obj;
   });
 
   var callback = e.parameter.callback;
+   // Basic validation for callback name to prevent potential issues
+   if (!callback || !/^[a-zA-Z0-9_]+$/.test(callback)) {
+     Logger.log("Invalid or missing callback parameter in GET request.");
+     return ContentService
+       .createTextOutput(JSON.stringify({ status: "error", message: "Invalid callback parameter" }))
+       .setMimeType(ContentService.MimeType.JSON); // Respond with JSON error if callback invalid
+   }
   var jsonpResponse = callback + '(' + JSON.stringify(json) + ')';
 
   return ContentService
@@ -1240,51 +1370,146 @@ function doPost(e) {
   lock.waitLock(30000); // Wait up to 30 seconds for lock
 
   try {
+    // Check if sheet exists and has headers
+    if (!sheet) {
+        Logger.log("Error in doPost: Active sheet not found.");
+        return ContentService.createTextOutput("Error: Sheet not found");
+    }
+    var headersRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+    var headers = headersRange.getValues()[0];
+     if (!headers || headers.length === 0 || headers.join("").trim() === "") {
+        Logger.log("Error in doPost: Sheet headers are missing or empty in row 1.");
+        return ContentService.createTextOutput("Error: Sheet headers missing");
+     }
+
     var data = e.parameter;
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    if (!data || Object.keys(data).length === 0) {
+        Logger.log("Error in doPost: Received empty POST data.");
+        return ContentService.createTextOutput("Error: No data received");
+    }
+
     var arrivalTime = data["Arrival Time"];
     var workerName = data["Worker Name"];
 
+    // Basic validation
+    if (!arrivalTime || !workerName) {
+         Logger.log("Error in doPost: Missing 'Arrival Time' or 'Worker Name' in POST data. Data: " + JSON.stringify(data));
+         return ContentService.createTextOutput("Error: Missing required fields");
+    }
+
+
     // Find existing row or create a new one
-    var dataRange = sheet.getDataRange().getValues();
-    var rowIndex = -1;
-    for (var i = 1; i < dataRange.length; i++) {
-      var rowArrivalTime = new Date(dataRange[i][headers.indexOf("Arrival Time")]).toISOString();
-      if (dataRange[i][headers.indexOf("Worker Name")] === workerName && rowArrivalTime === arrivalTime) {
-        rowIndex = i + 1;
-        break;
-      }
+    var dataRange = sheet.getDataRange(); // Get range AFTER checking headers
+    var sheetValues = dataRange.getValues(); // Get values once
+    var rowIndex = -1; // 0-based index in sheetValues array, becomes 1-based row number later
+    var arrivalTimeIndex = headers.indexOf("Arrival Time");
+    var workerNameIndex = headers.indexOf("Worker Name");
+
+     if (arrivalTimeIndex === -1 || workerNameIndex === -1) {
+         Logger.log("Error in doPost: 'Arrival Time' or 'Worker Name' header not found.");
+         return ContentService.createTextOutput("Error: Critical headers missing");
+     }
+
+    // Start searching from the second row (index 1) in sheetValues
+    for (var i = 1; i < sheetValues.length; i++) {
+        // Defensive coding: Check if columns exist before accessing
+        var rowArrivalTimeISO = "";
+        if (sheetValues[i][arrivalTimeIndex]) {
+            try {
+                rowArrivalTimeISO = new Date(sheetValues[i][arrivalTimeIndex]).toISOString();
+            } catch (dateErr) {
+                 Logger.log("Error parsing date in sheet row " + (i+1) + ": " + sheetValues[i][arrivalTimeIndex] + " Error: " + dateErr);
+                 continue; // Skip this row if date is invalid
+            }
+        }
+        var rowWorkerName = sheetValues[i][workerNameIndex];
+
+        // Check types before comparing
+        if (typeof rowWorkerName === 'string' && typeof workerName === 'string' &&
+            rowWorkerName.trim() === workerName.trim() && rowArrivalTimeISO === arrivalTime) {
+          rowIndex = i; // Found the match (0-based index)
+          break;
+        }
     }
 
     if (rowIndex !== -1) {
-      // Update existing row
-      headers.forEach(function(header) {
+      // Update existing row (use rowIndex + 1 for 1-based sheet range)
+      var sheetRowIndex = rowIndex + 1;
+      headers.forEach(function(header, index) {
         if (data[header] !== undefined) {
-          var colIndex = headers.indexOf(header) + 1;
-          sheet.getRange(rowIndex, colIndex).setValue(data[header]);
+          var colIndex = index + 1; // 1-based column index
+          try {
+            sheet.getRange(sheetRowIndex, colIndex).setValue(data[header]);
+          } catch (rangeErr) {
+              Logger.log("Error setting value at row " + sheetRowIndex + ", col " + colIndex + " for header '" + header + "'. Value: " + data[header] + " Error: " + rangeErr);
+          }
         }
       });
+      Logger.log("Updated row " + sheetRowIndex + " for worker: " + workerName);
+
     } else {
-      // Append new row (This part is mainly for the worker app's first "ON SITE" post)
+      // Append new row
       var newRow = headers.map(function(header) {
-        return data[header] || "";
+        // Ensure value exists or use empty string
+        return data.hasOwnProperty(header) ? data[header] : "";
       });
-      sheet.appendRow(newRow);
+      try {
+        sheet.appendRow(newRow);
+        Logger.log("Appended new row for worker: " + workerName);
+      } catch (appendErr) {
+         Logger.log("Error appending row for worker " + workerName + ". Data: " + JSON.stringify(newRow) + " Error: " + appendErr);
+         return ContentService.createTextOutput("Error: Failed to append row");
+      }
     }
 
-    // Immediate alert triggers (from worker app)
-    if (['EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN'].indexOf(data['Alarm Status']) > -1) {
-        sendAlertEmail(data, data['Alarm Status']);
+    // --- Immediate Alert Trigger Logic ---
+    var currentStatus = data['Alarm Status'];
+    if (currentStatus) {
+        var immediateAlertTypes = ['EMERGENCY - PANIC BUTTON', 'DURESS_CODE_ACTIVATED', 'MISSED_CHECKIN'];
+        // Check if the current status requires an immediate email AND if it's potentially a *new* status being set
+        // (Avoids re-sending if the POST is just adding notes to an existing alert)
+        if (immediateAlertTypes.indexOf(currentStatus) > -1) {
+             // Fetch the row data again *after* potential update/append to ensure we have all contact details
+             var updatedRowData = {};
+             var finalRowIndex = (rowIndex !== -1) ? rowIndex + 1 : sheet.getLastRow();
+             if (finalRowIndex > 1) { // Ensure it's not just the header row
+                 var updatedRowValues = sheet.getRange(finalRowIndex, 1, 1, headers.length).getValues()[0];
+                 headers.forEach(function(header, j) {
+                    updatedRowData[header] = updatedRowValues[j];
+                 });
+
+                 // Check if alert was already sent for this specific status to avoid duplicates from potential rapid POSTs
+                 var notes = updatedRowData['Notes'] || "";
+                 var alertAlreadySentMarker = "Immediate alert email sent for " + currentStatus;
+                 if (!notes.includes(alertAlreadySentMarker)) {
+                    sendAlertEmail(updatedRowData, currentStatus);
+                    // Add a note to indicate email was sent
+                     try {
+                        var notesColIndex = headers.indexOf("Notes") + 1;
+                        if (notesColIndex > 0) {
+                            var newNote = (notes ? notes + "\n" : "") + alertAlreadySentMarker + " at " + new Date().toISOString();
+                            sheet.getRange(finalRowIndex, notesColIndex).setValue(newNote);
+                        }
+                     } catch(noteErr) { Logger.log("Error adding 'email sent' note: " + noteErr); }
+                 } else {
+                      Logger.log("Immediate alert email for " + currentStatus + " for worker " + workerName + " already sent. Skipping.");
+                 }
+             } else {
+                  Logger.log("Could not find updated row data for immediate alert email for worker: " + workerName);
+             }
+        }
     }
 
 
   } catch (err) {
-    Logger.log('Error in doPost: ' + err.toString());
+    Logger.log('FATAL Error in doPost: ' + err.toString() + " Stack: " + err.stack);
+    // Return error to client if possible
+    return ContentService.createTextOutput("Error: Server error during POST");
   } finally {
     lock.releaseLock();
   }
 
-  return ContentService.createTextOutput("Success");
+  return ContentService.createTextOutput("Success"); // Send success response
 }
 
 // --- AUTOMATED TRIGGER FUNCTION ---
@@ -1298,50 +1523,104 @@ function checkOverdueWorkers() {
   lock.waitLock(30000);
 
   try {
+     // Check if sheet exists and has headers
+    if (!sheet) {
+        Logger.log("Error in checkOverdueWorkers: Active sheet not found.");
+        return; // Exit if no sheet
+    }
+    var headersRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+    var headers = headersRange.getValues()[0];
+     if (!headers || headers.length === 0 || headers.join("").trim() === "") {
+        Logger.log("Error in checkOverdueWorkers: Sheet headers are missing or empty in row 1.");
+        return; // Exit if no headers
+     }
+
     var dataRange = sheet.getDataRange();
-    var data = dataRange.getValues();
-    var headers = data[0];
+    var data = dataRange.getValues(); // Get all values including headers
     var now = new Date();
 
     // Define all "resolved" statuses
     var resolvedStatuses = ['DEPARTED', 'SAFE - MANUALLY CLEARED', 'MONITOR_CLEARED_ALERT'];
+    // Find column indices once
+    var statusColIndex = headers.indexOf('Alarm Status');
+    var departureColIndex = headers.indexOf('Anticipated Departure Time');
+    var notesColIndex = headers.indexOf('Notes');
 
+     if (statusColIndex === -1 || departureColIndex === -1) {
+        Logger.log("Error in checkOverdueWorkers: 'Alarm Status' or 'Anticipated Departure Time' header not found.");
+        return; // Exit if critical headers missing
+     }
+
+    // Iterate starting from row 1 (second row in data array)
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
-      var worker = {};
+      var worker = {}; // Build worker object for context (used in email)
       headers.forEach(function(header, j) {
-        worker[header] = row[j];
+        worker[header] = (j < row.length) ? row[j] : ""; // Handle short rows
       });
 
-      var status = worker['Alarm Status'];
-      var anticipatedDeparture = new Date(worker['Anticipated Departure Time']);
+      var status = row[statusColIndex];
+      var anticipatedDepartureStr = row[departureColIndex];
+      var anticipatedDeparture;
 
-      // *** MODIFIED LINE ***
-      // Check if status is NOT in the resolved list and is overdue
+      // Validate status and date before proceeding
+      if (typeof status !== 'string' || !anticipatedDepartureStr) {
+          // Log minimal info to avoid excessive logging for potentially blank rows
+          if (row.join("").trim() !== "") { // Log only if row isn't completely blank
+            Logger.log("Skipping row " + (i+1) + " in checkOverdueWorkers due to missing status or departure time.");
+          }
+          continue;
+      }
+       try {
+           anticipatedDeparture = new Date(anticipatedDepartureStr);
+           if (isNaN(anticipatedDeparture)) throw new Error("Invalid date format");
+       } catch (dateErr) {
+            Logger.log("Skipping row " + (i+1) + " in checkOverdueWorkers due to invalid date format: " + anticipatedDepartureStr + " Error: " + dateErr);
+            continue;
+       }
+
+
+      // Check if status is NOT resolved AND is overdue
       if (resolvedStatuses.indexOf(status) === -1 && now > anticipatedDeparture) {
         var overdueMinutes = (now.getTime() - anticipatedDeparture.getTime()) / 60000;
-        
-        var alertToSend = null;
-        if (overdueMinutes >= 60 && status !== 'ESCALATION_SENT') {
-            alertToSend = 'ESCALATION_SENT';
-        } else if (overdueMinutes >= 45 && status !== 'EMAIL_3_SENT') {
-            alertToSend = 'EMAIL_3_SENT';
-        } else if (overdueMinutes >= 30 && status !== 'EMAIL_2_SENT') {
-            alertToSend = 'EMAIL_2_SENT';
-        } else if (overdueMinutes >= 15 && status !== 'EMAIL_1_SENT') {
-            alertToSend = 'EMAIL_1_SENT';
-        }
 
-        if (alertToSend) {
-            sheet.getRange(i + 1, headers.indexOf('Alarm Status') + 1).setValue(alertToSend);
-            sendAlertEmail(worker, alertToSend);
+        var alertToSend = null;
+        var nextStatusLevel = null; // Track which email level is due
+
+        // Determine the next alert level based on current status and overdue time
+        if (overdueMinutes >= 60 && status !== 'ESCALATION_SENT') { nextStatusLevel = 'ESCALATION_SENT'; }
+        else if (overdueMinutes >= 45 && status !== 'ESCALATION_SENT' && status !== 'EMAIL_3_SENT') { nextStatusLevel = 'EMAIL_3_SENT'; }
+        else if (overdueMinutes >= 30 && status !== 'ESCALATION_SENT' && status !== 'EMAIL_3_SENT' && status !== 'EMAIL_2_SENT') { nextStatusLevel = 'EMAIL_2_SENT'; }
+        else if (overdueMinutes >= 15 && status !== 'ESCALATION_SENT' && status !== 'EMAIL_3_SENT' && status !== 'EMAIL_2_SENT' && status !== 'EMAIL_1_SENT') { nextStatusLevel = 'EMAIL_1_SENT'; }
+
+        // Send email only if a NEW alert level is reached
+        if (nextStatusLevel) {
+            alertToSend = nextStatusLevel;
+             try {
+                // Update status in the sheet
+                sheet.getRange(i + 1, statusColIndex + 1).setValue(alertToSend); // i+1 for row num, statusColIndex+1 for col num
+
+                // Send the alert email
+                sendAlertEmail(worker, alertToSend); // Pass the worker context object
+
+                // Add a note that the email was sent
+                if (notesColIndex !== -1) {
+                    var currentNotes = row[notesColIndex] || "";
+                    var newNote = (currentNotes ? currentNotes + "\n" : "") + "Automated email sent: " + alertToSend + " at " + new Date().toISOString();
+                     sheet.getRange(i + 1, notesColIndex + 1).setValue(newNote);
+                }
+                 Logger.log("Sent alert " + alertToSend + " for worker " + worker['Worker Name'] + " (Row " + (i+1) + ")");
+
+             } catch (updateErr) {
+                 Logger.log("Error updating status/sending email for row " + (i+1) + ", worker " + worker['Worker Name'] + ". Error: " + updateErr);
+             }
         }
       }
     }
 
 
   } catch (err) {
-    Logger.log('Error in checkOverdueWorkers: ' + err.toString());
+    Logger.log('FATAL Error in checkOverdueWorkers: ' + err.toString() + " Stack: " + err.stack);
   } finally {
     lock.releaseLock();
   }
@@ -1353,299 +1632,347 @@ function checkOverdueWorkers() {
 Sends a formatted alert email.
 */
 function sendAlertEmail(workerData, alertType) {
+   // Validate essential data
+   if (!workerData || !alertType) {
+       Logger.log("sendAlertEmail: Missing workerData or alertType.");
+       return;
+   }
+   var workerName = workerData['Worker Name'] || 'Unknown Worker'; // Use default if missing
+
   var recipient = alertType === 'ESCALATION_SENT' ? workerData['Escalation Contact Email'] : workerData['Emergency Contact Email'];
   var subject = '';
   var body = '';
 
-  var locationName = workerData['Location Name'] || 'Not specified';
-  var locationAddress = workerData['Location Address'] || 'Not specified';
-  var workerName = workerData['Worker Name'];
-  var workerPhone = workerData['Worker Phone Number'];
-  var anticipatedDeparture = new Date(workerData['Anticipated Departure Time']).toLocaleString();
+   // Add fallbacks for potentially missing data
+   var locationName = workerData['Location Name'] || 'Not specified';
+   var locationAddress = workerData['Location Address'] || 'Not specified';
+   var workerPhone = workerData['Worker Phone Number'] || 'Not specified';
+   var anticipatedDepartureStr = 'Not specified';
+    try {
+        var depDate = new Date(workerData['Anticipated Departure Time']);
+        if (!isNaN(depDate)) anticipatedDepartureStr = depDate.toLocaleString();
+    } catch(e) {/* ignore date parse error */}
 
-  var locationLink = 'https://www.google.com/search?q=https://www.google.com/maps%3Fq%3D' + encodeURIComponent(locationAddress);
-  if (workerData['Last Known GPS']) {
-    locationLink = 'https://www.google.com/search?q=https://www.google.com/maps%3Fq%3D' + workerData['Last Known GPS'];
+
+  var locationLink = 'https://www.google.com/maps?q=' + encodeURIComponent(locationAddress); // Default to address
+  if (workerData['Last Known GPS'] && workerData['Last Known GPS'].includes(',')) {
+    locationLink = 'https://www.google.com/maps?q=' + workerData['Last Known GPS']; // Use GPS if available
   }
 
   switch(alertType) {
     case 'EMERGENCY - PANIC BUTTON':
       subject = 'URGENT PANIC ALERT for ' + workerName;
-      body = '<p><strong>A PANIC ALERT has been triggered by ' + workerName + '.</strong></p> <p>This is a high-priority alert indicating an emergency situation.</p>';
+      body = '<p><strong>A PANIC ALERT has been triggered by ' + workerName + '.<\/strong><\/p> <p>This is a high-priority alert indicating an emergency situation.<\/p>';
       break;
     case 'DURESS_CODE_ACTIVATED':
       subject = 'URGENT DURESS ALERT for ' + workerName;
-      body = '<p><strong>A SILENT DURESS ALARM has been triggered by ' + workerName + '.</strong></p> <p>The worker has entered their Duress PIN, suggesting they may be under threat and unable to call for help directly.</p>';
+      body = '<p><strong>A SILENT DURESS ALARM has been triggered by ' + workerName + '.<\/strong><\/p> <p>The worker has entered their Duress PIN, suggesting they may be under threat and unable to call for help directly.<\/p>';
       break;
     case 'MISSED_CHECKIN':
       subject = 'MISSED CHECK-IN ALERT for ' + workerName;
-      body = '<p><strong>' + workerName + ' has missed a scheduled "Are you OK?" check-in.</strong></p>';
+      body = '<p><strong>' + workerName + ' has missed a scheduled "Are you OK?" check-in.<\/strong><\/p>';
       break;
     case 'ESCALATION_SENT':
       subject = 'ESCALATION ALERT: ' + workerName + ' is 60+ mins Overdue';
-      body = '<p>This is an escalation alert. ' + workerName + ' is now more than 60 minutes overdue and has not responded to previous alerts.</p>';
+      body = '<p>This is an escalation alert. ' + workerName + ' is now more than 60 minutes overdue and has not responded to previous alerts.<\/p>';
+      recipient = workerData['Escalation Contact Email'] || recipient; // Ensure escalation recipient is used
       break;
-    default: // Standard overdue alerts
-      var minutesOverdue = alertType.split('_')[1] * 15;
-      subject = 'Overdue Alert: ' + workerName + ' is ' + minutesOverdue + '+ mins Overdue';
-      body = '<p>' + workerName + ' is now more than ' + minutesOverdue + ' minutes overdue.</p>';
+     case 'EMAIL_1_SENT':
+     case 'EMAIL_2_SENT':
+     case 'EMAIL_3_SENT':
+        var minutesOverdueMatch = alertType.match(/EMAIL_(\d+)_SENT/);
+        var minutesOverdue = minutesOverdueMatch ? parseInt(minutesOverdueMatch[1]) * 15 : 15; // Calculate minutes
+        subject = 'Overdue Alert: ' + workerName + ' is ' + minutesOverdue + '+ mins Overdue';
+        body = '<p>' + workerName + ' is now more than ' + minutesOverdue + ' minutes overdue.<\/p>';
       break;
+    default: // Should not happen with current logic, but include a fallback
+       Logger.log("sendAlertEmail called with unexpected alertType: " + alertType);
+       subject = 'System Alert for ' + workerName;
+       body = '<p>An alert of type "' + alertType + '" was triggered for ' + workerName + '.<\/p>';
+       break;
   }
 
-  var fullBody = '<html><body style="font-family: sans-serif; line-height: 1.6;">' + body + '<hr style="margin: 20px 0;"><h3>Visit Details:</h3><ul><li><strong>Worker:</strong> ' + workerName + '</li><li><strong>Phone:</strong> ' + workerPhone + '</li><li><strong>Location:</strong> ' + locationName + '</li><li><strong>Address:</strong> ' + locationAddress + '</li><li><strong>Anticipated Departure:</strong> ' + anticipatedDeparture + '</li></ul><p style="font-size: 1.2em; font-weight: bold;"><a href="' + locationLink + '">View Location on Map</a></p><p style="font-size: 0.8em; color: #888;">This is an automated message from the Lone Worker Safety System.</p></body></html>';
+  var fullBody = \`<html><body style="font-family: sans-serif; line-height: 1.6;">\${body}<hr style="margin: 20px 0;"><h3>Visit Details:</h3><ul><li><strong>Worker:</strong> \${workerName}</li><li><strong>Phone:</strong> \${workerPhone}</li><li><strong>Location:</strong> \${locationName}</li><li><strong>Address:</strong> \${locationAddress}</li><li><strong>Anticipated Departure:</strong> \${anticipatedDepartureStr}</li></ul><p style="font-size: 1.2em; font-weight: bold;"><a href="\${locationLink}">View Location on Map</a></p><p style="font-size: 0.8em; color: #888;">This is an automated message from the Lone Worker Safety System.</p></body></html>\`;
 
-  if (recipient) {
+  if (recipient && recipient.includes('@')) { // Basic check for a valid email format
     try {
       MailApp.sendEmail({
         to: recipient,
         subject: subject,
         htmlBody: fullBody,
-        name: "LWS System Alert"
+        name: "LWS System Alert" // Optional: Set sender name
       });
-      Logger.log('Email sent to ' + recipient + ' for alert type ' + alertType);
+      Logger.log('Email sent to ' + recipient + ' for worker ' + workerName + ', alert type ' + alertType);
     } catch (e) {
-      Logger.log('Failed to send email to ' + recipient + ': ' + e.toString());
+      Logger.log('Failed to send email to ' + recipient + ' for worker ' + workerName + '. Error: ' + e.toString());
     }
   } else {
-    Logger.log('Cannot send email: No recipient found for alert type ' + alertType);
+    Logger.log('Cannot send email for worker ' + workerName + ': Invalid or missing recipient (' + recipient + ') for alert type ' + alertType);
   }
 }
 `;
 
             // ADMIN GUIDE (MODIFIED with GitHub instructions)
-            document.getElementById('admin_guide_template').textContent = `
+            document.getElementById('admin_guide_template-tpl').innerHTML = `
 # Administrator Setup Guide: Lone Worker Safety System
 
 Welcome to the Lone Worker Safety (LWS) System. This guide will walk you through the complete setup and deployment process, including hosting your apps for free using GitHub Pages.
 
 ## **Prerequisites**
 
-1.  A Google Account (e.g., a free Gmail account or a Google Workspace account).
-2.  An email address to sign up for GitHub.
-3.  The \`LWS_Deployment.zip\` file generated by the \`setup.html\` tool.
+1.  A **Google Account** (e.g., a free Gmail account or a Google Workspace account).
+2.  An **email address** to sign up for GitHub.
+3.  The \`LWS_Deployment.zip\` file generated by the \`setup.html\` tool (which you'll get at the end of Part 2).
+4.  Basic computer skills (navigating websites, copy/pasting text, finding files).
 
 ---
 
 ## **Part 1: Deploy the Google Apps Script Backend**
 
-This creates the "brain" of the system in a Google Sheet.
+This creates the "brain" of the system in a Google Sheet. Think of it as setting up the central database and logic.
 
 1.  **Create Your Google Sheet:**
-    * Go to [sheets.google.com/create](https://sheets.google.com/create).
-    * Name your spreadsheet (e.g., "Lone Worker Safety Log").
+    * Go to [sheets.google.com/create](https://sheets.google.com/create) in your web browser.
+    * Give your spreadsheet a name at the top left. For example: \`Lone Worker Safety Log\`.
 
-2.  **Add Headers:**
-    * The \`setup.html\` tool (which you are using now) has a **"Copy Sheet Headers"** button. Click it.
-    * Paste the copied headers into the first row (cell \`A1\`) of your new sheet. The sheet must have these exact headers in this order.
+2.  **Add Headers to the Sheet:**
+    * Find the button labeled **"Copy Sheet Headers"** in Step 1 of the \`setup.html\` tool you are using now. Click it.
+    * Go back to your empty Google Sheet. Click **once** in the very top-left cell (cell \`A1\`).
+    * **Paste** the headers (Right-click > Paste, or Ctrl+V / Cmd+V). The headers should fill the first row (\`A1\`, \`B1\`, \`C1\`, etc.).
+        * _Important:_ Make sure you paste into \`A1\` and don't accidentally skip columns or rows.
 
-3.  **Open Apps Script:**
-    * In your Google Sheet, click \`Extensions\` > \`Apps Script\`.
-    * Delete any placeholder code in the \`Code.gs\` file.
+3.  **Open the Script Editor:**
+    * In your Google Sheet menu, click \`Extensions\` > \`Apps Script\`. A new browser tab will open with the script editor.
 
-4.  **Paste and Configure the Script:**
-    * The \`setup.html\` tool has a **"Copy Script Code"** button. Click it.
-    * Paste the code into the empty \`Code.gs\` editor.
-    * Find the line \`var SECRET_KEY = "YOUR_SECRET_KEY_HERE";\`
-    * **Crucial:** Change \`"YOUR_SECRET_KEY_HERE"\` to a strong, unique password. **Remember this key!** You will need it later for the setup tool and the Monitor App.
+4.  **Paste and Configure the Script Code:**
+    * The script editor might show some default code like \`function myFunction() { ... }\`. **Delete all of that text.**
+    * Go back to the \`setup.html\` tool. Find and click the **"Copy Script Code"** button in Step 1.
+    * Go back to the empty script editor tab and **Paste** the code (Right-click > Paste, or Ctrl+V / Cmd+V).
+    * **Set Your Secret Key:** Near the top of the pasted code (around line 7), find this line:
+        \`var SECRET_KEY = "YOUR_SECRET_KEY_HERE";\`
+    * **Crucial:** Replace \`YOUR_SECRET_KEY_HERE\` (including the quotes) with a **strong, unique password** that you create. Make sure to keep the quotes around your password. For example: \`var SECRET_KEY = "My@pP-$ecret-K3y!";\`
+        * **Write this password down securely!** You will need it in Part 2.
 
-5.  **Deploy the Script:**
-    * At the top right, click the **Deploy** button.
-    * Select **New deployment**.
-    * For "Select type," click the gear icon ⚙️ and select **Web app**.
-    * In the "Configuration" settings:
-        * **Description:** \`LWS Backend\` (or any name you like)
-        * **Execute as:** \`Me\` (Your Google Account)
-        * **Who has access:** \`Anyone\` (This is required for the app to send data. The \`SECRET_KEY\` keeps it secure).
-    * Click **Deploy**.
+5.  **Deploy the Script as a Web App:**
+    * At the top right of the script editor, click the blue **"Deploy"** button.
+    * Select **"New deployment"**.
+    * Click the **gear icon** ⚙️ next to "Select type" and choose **"Web app"**.
+    * Fill in the "Configuration" settings:
+        * **Description:** You can type \`LWS Backend\` or leave it blank.
+        * **Execute as:** Select \`Me\` (Your Google Account).
+        * **Who has access:** Change this from "Only myself" to **\`Anyone\`**.
+            * _Don't worry:_ This doesn't mean anyone can see your data. It just means the *app* can send data *to* the script. Your \`SECRET_KEY\` protects it.
+    * Click the blue **"Deploy"** button at the bottom.
 
-6.  **Authorize Permissions:**
-    * Google will ask you to authorize the script. This allows it to modify your spreadsheet and send emails on your behalf.
+6.  **Authorize the Script (Important):**
+    * Google needs your permission for the script to access your spreadsheet and send emails. Click **"Authorize access"**.
     * Choose your Google account.
-    * You will likely see a "Google hasn't verified this app" warning. This is normal for your own scripts.
-    * Click **Advanced**, then click **"Go to [Your Project Name] (unsafe)"**. (The name might be "Untitled project" if you didn't name it).
-    * Review the permissions (it needs to edit sheets and send mail) and click **Allow**.
+    * You'll likely see a **"Google hasn't verified this app"** screen. This is normal because it's *your* script, not one from the marketplace.
+    * Click **"Advanced"** (it might be a small link).
+    * Click **"Go to [Your Project Name] (unsafe)"**. (The project name might be "Untitled project").
+    * Review the permissions it needs (like "See, edit, create, and delete your spreadsheets" and "Send email as you"). Click **"Allow"**.
 
 7.  **Copy Your Web App URL:**
-    * After deployment, a "Deployment" box will appear showing the **Web app URL**.
-    * **Copy this URL** carefully. You need it for the next step.
-    * Click **Done**.
+    * After authorizing, a box titled "Web app" will appear, showing the **URL**.
+    * **Copy this entire URL**. This is the link to your script running online.
+    * Click **"Done"**. Keep the script editor tab open for now, you'll need it again in Part 4.
 
 ---
 
-## **Part 2: Run the Setup Tool**
+## **Part 2: Use the Setup Tool to Create Your Apps**
 
-Now you will use this \`setup.html\` tool to create your customized apps.
+Now, back in this \`setup.html\` tool page:
 
-1.  **Enter Your Details (Step 2 in the tool):**
-    * **Deployed Web App URL:** Paste the URL you copied from Part 1, Step 7.
-    * **Secret Key:** Enter the exact \`SECRET_KEY\` password you created in Part 1, Step 4.
+1.  **Enter Your Details (Step 2):**
+    * **Deployed Web App URL:** Paste the URL you just copied from the script deployment (Part 1, Step 7).
+    * **Secret Key:** Carefully type the exact \`SECRET_KEY\` password you created inside the script (Part 1, Step 4). *Passwords are case-sensitive!*
 
 2.  **Test the Connection:**
-    * Click the **"Test Connection"** button.
-    * You **must** see a green "✅ Success! Connection established." message.
-    * If you see an error:
-        * \`Access Denied!\`: Your Secret Key is wrong. Check capitalization.
-        * \`Failed!\`: Your Web App URL is wrong, or you didn't set "Who has access" to \`Anyone\` during deployment in Part 1. Double-check the deployment settings in Apps Script.
+    * Click the green **"Test Connection"** button.
+    * Wait a few seconds. You **must** see a green message saying "✅ Success! Connection established.".
+    * **Troubleshooting:**
+        * If it says \`Access Denied!\`: Your Secret Key is incorrect or doesn't match the one in the script. Double-check it.
+        * If it says \`Failed!\` or \`Timeout!\`: Your Web App URL might be wrong, or you might not have set "Who has access" to \`Anyone\` when deploying the script. Go back to the Apps Script editor, click "Deploy" > "Manage deployments", click the pencil icon ✏️ next to your deployment, make sure "Who has access" is \`Anyone\`, and click "Deploy" again (you might get a *new* URL - if so, use the new one).
 
-3.  **Customize (Step 3 in the tool - Optional):**
-    * **First Alert Time:** Change how many minutes *after* the anticipated departure time the first overdue email alert is sent (default is 15).
-    * **"Are You OK?" Check-ins:** Enable this if you want the worker app to periodically ask the worker to confirm they are safe. Set the interval (default 30 minutes).
-    * **Company Logo URL:** If you have your company logo hosted online, you can paste the URL here to use it as the app icon.
+3.  **Customize Your Apps (Step 3 - Optional):**
+    * You can usually leave these as default unless you have specific needs.
+    * **First Alert Time:** How many minutes after a worker is overdue should the first automatic email be sent? (Default: 15).
+    * **Check-ins:** Do you want the app to periodically ask the worker "Are you OK?" (Default: Disabled). If enabled, set how often (Default: 30 minutes).
+    * **Company Logo URL:** If your company logo is available online (e.g., on your website), you can paste the image URL here. It will be used for the app icon when saved to a phone's home screen. (Default is a generic icon).
 
-4.  **Generate Package (Step 4 in the tool):**
-    * Click the **"Generate & Download .zip Package"** button.
-    * This will save a \`LWS_Deployment.zip\` file to your computer's Downloads folder.
+4.  **Generate the App Package (Step 4):**
+    * Click the big red **"Generate & Download .zip Package"** button.
+    * Your browser will download a file named \`LWS_Deployment.zip\` (usually to your Downloads folder). This zip file contains your customized app files.
 
 ---
 
 ## **Part 3: Host Your Apps using GitHub Pages (Free)**
 
-This part explains how to put your generated apps online so users can access them. We'll use GitHub Pages, which is a free service.
+This part puts your generated apps online so users can access them via a web link. We'll use a free service called GitHub Pages.
 
-1.  **Create a GitHub Account:**
-    * Go to [github.com](https://github.com/).
+1.  **Sign Up for GitHub:**
+    * Go to [github.com](https://github.com/) in your web browser.
     * Click **"Sign up"**.
-    * Follow the instructions: Choose a username, enter your email, create a password, and verify your account (you might need to solve a puzzle and check your email).
+    * Enter your email address, create a password, choose a username (e.g., \`YourCompanyNameSafety\`), and follow the verification steps (you might need to solve a puzzle and click a link in an email they send you).
 
-2.  **Create a New Repository:**
-    * Once logged into GitHub, click the **"+"** icon in the top-right corner, then select **"New repository"**.
-    * **Repository name:** Give it a simple name, like \`lone-worker-app\` (use lowercase letters, numbers, and hyphens).
-    * **Description:** (Optional) Add something like "Lone Worker Safety App files".
-    * **Public/Private:** Select **Public**. GitHub Pages requires the repository to be public for free hosting.
-    * **Initialize this repository with:** Check the box for **"Add a README file"**.
-    * Click **"Create repository"**.
+2.  **Create a New "Repository" (A Place for Your Files):**
+    * Once logged into GitHub, look for a **"+"** icon in the top-right corner. Click it, then select **"New repository"**.
+    * **Repository name:** Type a name like \`lone-worker-apps\` (use only lowercase letters, numbers, and hyphens).
+    * **Description:** (Optional) You can add something like "Files for the LWS App".
+    * Make sure **"Public"** is selected. (GitHub Pages requires this for free hosting).
+    * Check the box ☑️ **"Add a README file"**. This makes the next step easier.
+    * Click the green **"Create repository"** button.
 
-3.  **Unzip Your Generated Files:**
-    * Find the \`LWS_Deployment.zip\` file you downloaded in Part 2, Step 4.
-    * **Unzip** or **Extract** this file. You should now have a folder containing:
+3.  **Prepare Your App Files:**
+    * Find the \`LWS_Deployment.zip\` file you downloaded in Part 2.
+    * **Unzip** or **Extract** this file. (Right-click the zip file and choose "Extract All..." or use your unzip software).
+    * You should now have a normal folder containing:
         * \`LoneWorkerApp\` (folder)
         * \`MonitoringDashboardApp\` (folder)
-        * \`Administrator Setup Guide.md\` (this file)
-        * \`Installer Creation Guide.md\`
-        * \`Promotional Blurb.md\`
+        * And some \`.md\` guide files.
 
 4.  **Upload Your App Folders to GitHub:**
-    * Go to the main page of the repository you just created on GitHub (e.g., \`github.com/YourUsername/lone-worker-app\`).
-    * Click the **"Add file"** button, then select **"Upload files"**. 
-    * **Drag and Drop:** Open the unzipped folder from the previous step. Drag the **\`LoneWorkerApp\`** folder AND the **\`MonitoringDashboardApp\`** folder directly onto the GitHub upload area in your browser. It will say "Drop to upload your files".
-    * Wait for the files to upload (it might take a minute). You'll see a list of all the files inside those folders appear.
-    * **Commit changes:** Scroll down. In the box that says "Commit changes", type a brief message like \`Upload app files\`.
+    * Go back to the main page of the repository you just created on GitHub (e.g., \`github.com/YourUsername/lone-worker-apps\`).
+    * Click the **"Add file"** button (above the file list), then choose **"Upload files"**. 
+    * You'll see an area saying "Drag files here...". **Open the unzipped folder** from the previous step on your computer.
+    * Select **both** the \`LoneWorkerApp\` folder **and** the \`MonitoringDashboardApp\` folder, and **drag them together** onto that "Drag files here" area in your browser.
+    * Wait for GitHub to process the files. You'll see it listing the files it's found (like \`index.html\`, \`manifest.json\`, etc.). This might take a minute or two depending on your connection.
+    * Scroll down the page. In the "Commit changes" box, you can leave the default message or type something like \`Upload app files\`.
     * Click the green **"Commit changes"** button.
 
-5.  **Enable GitHub Pages:**
-    * On your repository's main page, click the **"Settings"** tab (usually near the top right). 
-    * On the left-hand menu, click **"Pages"**.
-    * Under "Build and deployment", find the "Source" setting. Select **"Deploy from a branch"**.
-    * Under "Branch", make sure **\`main\`** (or \`master\`) is selected, and the folder dropdown is set to **\`/(root)\`**.
-    * Click **"Save"**.
-    * The page will refresh. At the top, it should say "Your site is live at..." or "Your site is ready to be published at...". **It might take a few minutes** for the site to become active the first time. Keep refreshing the page until you see the final URL. 
-    * Your public URL will look something like: \`https://YourUsername.github.io/lone-worker-app/\`
+5.  **Turn On GitHub Pages Hosting:**
+    * On your repository's main page, click the **"Settings"** tab (usually near the top right, looks like a gear ⚙️ or is just text). 
+    * In the left-hand menu, click **"Pages"**.
+    * Under "Build and deployment":
+        * Make sure **"Source"** is set to **"Deploy from a branch"**.
+        * Under **"Branch"**:
+            * Make sure the branch selected is \`main\` (or possibly \`master\`).
+            * Make sure the folder selected is **\`/(root)\`**.
+        * Click **"Save"**.
+    * The page will refresh. You should see a message near the top like "Your site is live at: ..." or "Your site is ready to be published at: ...".
+        * **It can take 5-10 minutes** for the website to become active the first time. If you see "ready to be published", wait a few minutes and refresh the GitHub Pages settings page until you see the final URL. 
+    * The URL will look like: \`https://YourGitHubUsername.github.io/YourRepositoryName/\` (e.g., \`https://YourCompanyNameSafety.github.io/lone-worker-apps/\`). **This is your base website URL.**
 
-6.  **Find Your App URLs:**
-    * Your main GitHub Pages site URL is the one shown above.
-    * Your **Worker App** will be at: \`https://YourUsername.github.io/lone-worker-app/LoneWorkerApp/\`
-    * Your **Monitor App** will be at: \`https://YourUsername.github.io/lone-worker-app/MonitoringDashboardApp/\`
-    * **Bookmark these URLs!** The Worker App URL is what you give to your staff. The Monitor App URL is for your safety monitor.
+6.  **Find and Save Your App Links:**
+    * Your **Worker App** link is: \`[Your Base URL]/LoneWorkerApp/\`
+        * Example: \`https://YourCompanyNameSafety.github.io/lone-worker-apps/LoneWorkerApp/\`
+    * Your **Monitor App** link is: \`[Your Base URL]/MonitoringDashboardApp/\`
+        * Example: \`https://YourCompanyNameSafety.github.io/lone-worker-apps/MonitoringDashboardApp/\`
+    * **Bookmark these two links!** Test them by opening them in your browser. The Monitor App should ask for the URL/Key initially (unless the setup tool pre-filled it). The Worker App should open directly.
 
 ---
 
-## **Part 4: Set Up the Automated Trigger**
+## **Part 4: Set Up the Automatic Overdue Checker**
 
-This final step makes the Google Sheet automatically check for overdue workers every 5 minutes.
+This final step tells your Google Sheet to automatically check for overdue workers every 5 minutes.
 
-1.  **Go Back to Apps Script:**
-    * Open the Google Sheet you created in Part 1.
-    * Go back to the \`Extensions\` > \`Apps Script\` editor.
+1.  **Go Back to the Apps Script Editor:**
+    * Find the browser tab with the Apps Script editor you had open from Part 1. (If you closed it, open your Google Sheet again and go to \`Extensions\` > \`Apps Script\`).
 
-2.  **Open Triggers:**
-    * On the left-hand menu, click the **Triggers** icon (it looks like a clock ⏰).
-    * Click the **"+ Add Trigger"** button (usually in the bottom right).
+2.  **Open "Triggers":**
+    * On the left side menu, click the icon that looks like a **clock ⏰** (labeled "Triggers").
 
-3.  **Configure the Trigger:**
-    * **Choose which function to run:** \`checkOverdueWorkers\`
-    * **Choose which deployment should run:** \`Head\` (This means it always runs the latest saved code)
-    * **Select event source:** \`Time-driven\`
-    * **Select type of time-based trigger:** \`Minutes timer\`
-    * **Select minute interval:** \`Every 5 minutes\`
-    * **Error notification settings:** Choose how often you want emails if the trigger fails (e.g., "Notify me daily").
+3.  **Add a New Trigger:**
+    * Click the button (usually bottom right) that says **"+ Add Trigger"**.
+
+4.  **Configure the Trigger Settings:**
+    * **Choose which function to run:** Select \`checkOverdueWorkers\`.
+    * **Choose which deployment should run:** Select \`Head\`.
+    * **Select event source:** Select \`Time-driven\`.
+    * **Select type of time-based trigger:** Select \`Minutes timer\`.
+    * **Select minute interval:** Select \`Every 5 minutes\`.
+    * **Error notification settings:** Choose \`Notify me daily\` (this way you'll get an email if the script starts failing repeatedly).
     * Click **Save**.
 
-4.  **Authorize Again:**
-    * Google will likely ask for permissions again (this time for the trigger to run automatically on its own schedule).
-    * Follow the same "Advanced" > "Go to... (unsafe)" > "Allow" steps as you did in Part 1, Step 6.
+5.  **Authorize Again (If Needed):**
+    * Google might ask you to authorize *again*, because now you're allowing it to run automatically.
+    * Follow the same steps as before: Choose your account, click "Advanced", click "Go to... (unsafe)", and click "Allow".
 
 ---
 
-**✅ Deployment is Complete!**
+**✅ Deployment is Complete! Congratulations! 🎉**
 
-* Give the **Worker App URL** (\`https://.../LoneWorkerApp/\`) to your staff. They can open it on their phone's web browser. The setup tool has configured it to automatically find your Google Sheet backend. They just need to enter their personal details in the app's settings.
-* Give the **Monitor App URL** (\`https://.../MonitoringDashboardApp/\`) to your safety monitor. The setup tool has pre-filled the Sheet URL and Secret Key, so it should connect automatically when they open it.
+* **For your staff:** Give them the **Worker App URL** you saved (\`https://.../LoneWorkerApp/\`). They can open this link in the web browser on their smartphone (like Chrome or Safari). Instruct them to go to the app's settings (gear icon) and fill in their name, phone, contact details, and choose their PINs. The Google Sheet URL should already be filled in for them. Recommend they use the "Add to Home Screen" option in their browser menu to save it like a regular app.
+* **For your monitor:** Give them the **Monitor App URL** you saved (\`https://.../MonitoringDashboardApp/\`). They can open this in a web browser on their computer. It should connect automatically because the setup tool pre-filled the necessary details.
+
+Remember to keep your Google Sheet and your GitHub repository safe. The \`SECRET_KEY\` you set is important for securing the connection between the apps and the sheet.
 `;
 
             // INSTALLER GUIDE
-            document.getElementById('installer_guide_template').textContent = `
-# Optional Guide: Creating a Desktop Installer
+            document.getElementById('installer_guide_template-tpl').innerHTML = `
+# Optional Guide: Creating a Desktop Installer for the Monitor App
 
-While the **Monitoring App** is a web page that can be run in any browser, some organizations prefer a dedicated, installable desktop application for their safety monitor's workstation.
+While the **Monitoring App** works perfectly fine in a standard web browser (like Chrome, Firefox, Edge), some safety monitors might prefer having it run like a separate program on their desktop with its own icon in the taskbar.
 
-This guide explains how to use [**Nativefier**](https://github.com/nativefier/nativefier) to wrap the Monitoring App into a \`.exe\` (Windows), \`.dmg\` (Mac), or Linux application.
+This guide explains how to use a free tool called [**Nativefier**](https://github.com/nativefier/nativefier) to easily turn the Monitor App website into a simple desktop application for Windows, Mac, or Linux.
 
 ## **What is Nativefier?**
 
-Nativefier is a free, open-source command-line tool that creates a desktop app from any website. It's essentially a dedicated browser window for your app, complete with a desktop icon.
+Nativefier is a command-line tool (meaning you type commands into a special window) that takes a website address and wraps it into a basic desktop app. It's essentially creating a dedicated browser window just for that one website.
 
-## **Prerequisites**
+## **Prerequisites (Things you need first)**
 
-You must have [**Node.js**](https://nodejs.org/en/) installed on your computer. You can download it from the official website.
+1.  **Node.js Installed:** Nativefier needs Node.js to run. If you don't have it, it's easy and safe to install.
+    * Go to the official Node.js website: [nodejs.org](https://nodejs.org/)
+    * Download the **LTS** version recommended for most users. 
+    * Run the downloaded installer and accept the default options (click "Next" through the steps).
+2.  **Your Monitor App URL:** You need the web address (URL) where your Monitor App is hosted online (from Part 3, Step 6 of the main Setup Guide). Example: \`https://YourGitHubUsername.github.io/YourRepositoryName/MonitoringDashboardApp/\`
+3.  **Command Prompt Access:** You need to open a command-line interface:
+    * **Windows:** Press the Windows key, type \`cmd\`, and press Enter to open "Command Prompt". 
+    * **Mac:** Open "Finder", go to "Applications" > "Utilities", and double-click "Terminal". 
 
 ## **Instructions**
 
-1.  **Install Nativefier:**
-    * Open a command prompt (Terminal, PowerShell, or CMD).
-    * Run the following command to install Nativefier globally on your system:
-    \`\`\`bash
-    npm install -g nativefier
-    \`\`\`
+1.  **Install Nativefier (One-time setup):**
+    * Open your Command Prompt (Windows) or Terminal (Mac).
+    * Type the following command **exactly** and press Enter:
+        \`\`\`bash
+        npm install -g nativefier
+        \`\`\`
+    * Wait for it to download and install. You might see some text scroll by. If it finishes without saying "ERROR", it worked.
 
-2.  **Get Your Monitoring App URL:**
-    * You must have already deployed the \`MonitoringDashboardApp\` folder to a static web host (see the **Administrator Setup Guide**).
-    * Get the full, public URL, e.g., \`https://my-company-safety.netlify.app/MonitoringDashboardApp/\`
+2.  **Create the Desktop App:**
+    * In the **same** Command Prompt or Terminal window, type the following command, but **replace the example URL with your actual Monitor App URL**. Make sure to keep the quotes \`"\`.
+        \`\`\`bash
+        nativefier "https://YourGitHubUsername.github.io/YourRepositoryName/MonitoringDashboardApp/"
+        \`\`\`
+        * _(Optional: Give it a better name)_ If you want the app file to be called something specific like "LWS Monitor", add \`--name "LWS Monitor"\` to the command:
+            \`\`\`bash
+            nativefier --name "LWS Monitor" "https://YourGitHubUsername.github.io/YourRepositoryName/MonitoringDashboardApp/"
+            \`\`\`
+    * Press Enter.
+    * Nativefier will work for a minute or two, downloading components and building the app. It will tell you where it saved the app when it's done.
 
-3.  **Run the Nativefier Command:**
-    * In your command prompt, run the following command. Replace the URL and name with your own.
+3.  **Find Your New App:**
+    * Nativefier usually saves the app in a new folder inside your user directory (e.g., \`C:\Users\YourUsername\` on Windows or \`/Users/YourUsername\` on Mac). The folder will have a name like \`LWS Monitor-win32-x64\` (for Windows) or \`LWS Monitor-darwin-x64\` (for Mac).
+    * Open that folder. Inside, you'll find the application file (e.g., \`LWS Monitor.exe\` on Windows or \`LWS Monitor.app\` on Mac).
 
-    \`\`\`bash
-    nativefier "https://my-company-safety.netlify.app/MonitoringDashboardApp/" --name "LWS Monitor" --platform "windows"
-    \`\`\`
+4.  **Run and Distribute:**
+    * Double-click the application file to run it. It should open your Monitor App in its own window.
+    * You can copy this entire folder (e.g., \`LWS Monitor-win32-x64\`) to your safety monitor's computer (e.g., via a USB drive or network share). They can then run the application file from inside that folder.
+    * (Optional) You can create a shortcut to the application file and place it on the desktop for easier access.
 
-    * This will create a folder containing the \`LWS Monitor.exe\` and other files in your current directory.
+## **Extra Options (For more customization)**
 
-## **Useful Command Options**
+You can add these flags to the \`nativefier\` command in Step 2:
 
-You can customize the app further.
+* \`--platform "windows"\` or \`--platform "macos"\` or \`--platform "linux"\`: If you want to build for a different operating system than the one you're currently using (Note: building for macOS usually requires you to be *on* a Mac).
+* \`--icon "C:\\Path\\To\\Your\\Icon.ico"\` (Windows) or \`--icon "/path/to/your/icon.icns"\` (Mac): Use a custom icon file for the app. You'll need an \`.ico\` file for Windows or \`.icns\` for Mac.
+* \`--single-instance\`: Prevents the monitor from accidentally opening multiple copies of the app.
+* \`--always-on-top\`: Makes the monitor window stay above all other windows (can be useful for dedicated monitoring stations).
+* \`--disable-dev-tools\`: Hides the browser's developer tools menu, simplifying the interface.
 
-* \`--name "My App Name"\`: Sets the name of the application.
-* \`--platform "windows"\`: Build for Windows. You can also use \`mac\` or \`linux\`. (Note: To build for Mac, you must be *on* a Mac).
-* \`--icon "path/to/icon.ico"\`: Use a custom \`.ico\` (for Windows) or \`.icns\` (for Mac) file for the app icon.
-* \`--single-instance\`: Prevents the monitor from opening multiple copies of the app.
-* \`--always-on-top\`: Forces the monitor window to stay on top of all other windows.
-* \`--disable-dev-tools\`: Prevents users from opening the browser's developer tools.
-
-### **Example (All options):**
-
-This command creates a Windows app that forces a single instance, stays on top, and uses a custom icon.
+**Example with options:**
 
 \`\`\`bash
-nativefier "https://my-company-safety.netlify.app/MonitoringDashboardApp/" --name "LWS Monitor" --platform "windows" --single-instance --always-on-top --disable-dev-tools --icon "C:\LWS_Icons\monitor.ico"
+nativefier --name "LWS Monitor" --single-instance --always-on-top --icon "C:\\LWS\\icon.ico" "https://YourGitHubUsername.github.io/YourRepositoryName/MonitoringDashboardApp/"
 \`\`\`
 
-## **Distribution**
-
-After Nativefier finishes, you will have a folder (e.g., \`LWS Monitor-win32-x64\`). You can zip this folder and distribute it to your safety monitor. They can run the \`.exe\` file directly from that folder.
+This creates a Windows app named "LWS Monitor" that only allows one instance, stays on top, and uses a custom icon located at \`C:\LWS\icon.ico\`.
 `;
 
             // PROMO BLURB (MODIFIED)
-            document.getElementById('promo_blurb_template').textContent = `
+            document.getElementById('promo_blurb_template-tpl').innerHTML = `
 # Lone Worker Safety System: A Free, Self-Hosted Solution
 
 Ensure the safety of your staff in the community with our free, open-source Lone Worker Safety (LWS) system. Designed for organizations of all sizes, this system provides robust, real-time monitoring without the expensive monthly subscription fees of commercial products.
@@ -1671,8 +1998,7 @@ The system consists of two simple apps:
 * **100% Free & Self-Hosted:** No fees, ever. The system runs on a Google Sheet backend and any free static web host (like Netlify or GitHub Pages).
 * **Easy to Deploy:** A simple setup tool guides you through creating and customizing your apps in minutes.
 `;
-        }
+        } // End of injectTemplates function
     </script>
 </body>
 </html>
-
