@@ -851,10 +851,10 @@ header button svg, .edit-location-btn svg { pointer-events: none; }
                 let linkUrl = '#';
                 let linkTitle = 'Location not available';
                 if (worker['Last Known GPS']) {
-                    linkUrl = 'https://maps.google.com/?q=' + worker['Last Known GPS'];
+                    linkUrl = 'http://googleusercontent.com/maps.google.com/4' + worker['Last Known GPS'];
                     linkTitle = 'View last known GPS location';
                 } else if (worker['Location Address']) {
-                    linkUrl = 'https://maps.google.com/?q=' + encodeURIComponent(worker['Location Address']);
+                    linkUrl = 'http://googleusercontent.com/maps.google.com/4' + encodeURIComponent(worker['Location Address']);
                     linkTitle = 'View initial location address';
                 }
                 if(linkUrl !== '#') {
@@ -1236,9 +1236,9 @@ function sendAlertEmail(workerData, alertType) {
   var workerPhone = workerData['Worker Phone Number'];
   var anticipatedDeparture = new Date(workerData['Anticipated Departure Time']).toLocaleString();
   
-  var locationLink = 'https://maps.google.com/?q=' + encodeURIComponent(locationAddress);
+  var locationLink = 'http://googleusercontent.com/maps.google.com/4' + encodeURIComponent(locationAddress);
   if (workerData['Last Known GPS']) {
-    locationLink = 'https://maps.google.com/?q=' + workerData['Last Known GPS'];
+    locationLink = 'http://googleusercontent.com/maps.google.com/4' + workerData['Last Known GPS'];
   }
   
   switch(alertType) {
@@ -1322,6 +1322,45 @@ function sendAlertEmail(workerData, alertType) {
         const copyScriptBtn = document.getElementById('copyScriptBtn');
         const copyHeadersBtn = document.getElementById('copyHeadersBtn');
 
+        // *** NEW HELPER FUNCTION FOR CLIPBOARD ***
+        function copyTextToClipboard(text, buttonElement, originalText) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            
+            // Make it invisible and append it
+            textArea.style.position = 'fixed';
+            textArea.style.top = 0;
+            textArea.style.left = 0;
+            textArea.style.width = '2em';
+            textArea.style.height = '2em';
+            textArea.style.padding = 0;
+            textArea.style.border = 'none';
+            textArea.style.outline = 'none';
+            textArea.style.boxShadow = 'none';
+            textArea.style.background = 'transparent';
+            
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    buttonElement.textContent = 'Copied!';
+                } else {
+                    buttonElement.textContent = 'Failed!';
+                    alert('Copy failed. Please try again.');
+                }
+            } catch (err) {
+                buttonElement.textContent = 'Failed!';
+                alert('Copy failed. Please try again.');
+            }
+            
+            document.body.removeChild(textArea);
+            setTimeout(() => { buttonElement.textContent = originalText; }, 2000);
+        }
+        // *** END OF HELPER FUNCTION ***
+
         function navigateToStep(stepNum) {
             steps.forEach(s => s.classList.remove('active'));
             tabs.forEach(t => t.classList.remove('active'));
@@ -1349,6 +1388,7 @@ function sendAlertEmail(workerData, alertType) {
             checkinOptions.classList.toggle('hidden', !checkinEnabled.checked);
         });
 
+        // *** MODIFIED CLICK HANDLER ***
         copyScriptBtn.addEventListener('click', () => {
             const secretKey = document.getElementById('secretKey').value;
             if (!secretKey) {
@@ -1359,19 +1399,14 @@ function sendAlertEmail(workerData, alertType) {
                 'var SECRET_KEY = "YOUR_SECRET_KEY_HERE";',
                 `var SECRET_KEY = "${secretKey}";`
             );
-
-            navigator.clipboard.writeText(processedScript).then(() => {
-                copyScriptBtn.textContent = 'Copied!';
-                setTimeout(() => { copyScriptBtn.textContent = 'Copy Script Code'; }, 2000);
-            });
+            
+            copyTextToClipboard(processedScript, copyScriptBtn, 'Copy Script Code');
         });
 
+        // *** MODIFIED CLICK HANDLER ***
         copyHeadersBtn.addEventListener('click', () => {
             const headers = "Date\tWorker Name\tWorker Phone Number\tLocation Name\tLocation Address\tArrival Time\tAnticipated Departure Time\tActual Departure Time\tAlarm Status\tNotes\tLast Known GPS\tGPS Timestamp\tEmergency Contact Name\tEmergency Contact Number\tEmergency Contact Email\tEscalation Contact Name\tEscalation Contact Number\tEscalation Contact Email";
-            navigator.clipboard.writeText(headers).then(() => {
-                copyHeadersBtn.textContent = 'Copied!';
-                setTimeout(() => { copyHeadersBtn.textContent = 'Copy Headers'; }, 2000);
-            });
+            copyTextToClipboard(headers, copyHeadersBtn, 'Copy Headers');
         });
 
         testConnectionBtn.addEventListener('click', () => {
